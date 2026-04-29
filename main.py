@@ -2,16 +2,15 @@ import telebot
 from telebot import types
 import os, json
 
-# --- الإعدادات الثابتة ---
+# --- الإعدادات الأساسية ---
 TOKEN = "8401184550:AAH0x8_WC-h3kxOn4RoP3ASTOm7n84TJteU"
 OWNER_ID = 8611300267 
-BOT_USERNAME = "gudurjbot"
 MAX_USERS = 15
 
 bot = telebot.TeleBot(TOKEN)
 
-# --- نظام الملفات المصلح ---
-def init_files():
+# --- نظام الملفات (ضمان الإنشاء) ---
+def init_db():
     files = {
         "users.txt": "", 
         "bot_files.txt": "", 
@@ -19,136 +18,120 @@ def init_files():
         "activity.json": "{}",
         "settings.json": json.dumps({"notifications": True, "channel_id": "@Uchiha75", "sub_link": "https://t.me/Uchiha75"})
     }
-    for file, content in files.items():
-        if not os.path.exists(file):
-            with open(file, "w", encoding="utf-8") as f: f.write(content)
+    for f, c in files.items():
+        if not os.path.exists(f):
+            with open(f, "w", encoding="utf-8") as file: file.write(c)
 
-init_files()
+init_db()
 
-def load_json(file):
-    with open(file, "r", encoding="utf-8") as f: return json.load(f)
-
-def save_json(file, data):
-    with open(file, "w", encoding="utf-8") as f: json.dump(data, f, indent=4, ensure_ascii=False)
-
-def get_list(file):
-    with open(file, "r", encoding="utf-8") as f: return [line.strip() for line in f if line.strip()]
-
-def save_list(file, data):
-    with open(file, "w", encoding="utf-8") as f: f.write("\n".join(map(str, data)))
-
-# --- فحص الصلاحيات والاشتراك ---
-def is_admin(uid):
-    admins = load_json("admins.json")
-    return int(uid) == OWNER_ID or str(uid) in map(str, admins)
-
+# --- دالة فحص الاشتراك الإجباري ---
 def is_subscribed(uid):
-    conf = load_json("settings.json")
+    conf = json.load(open("settings.json"))
     try:
         status = bot.get_chat_member(conf["channel_id"], uid).status
         return status in ['member', 'administrator', 'creator']
     except: return False
 
-# --- لوحات التحكم ---
-def admin_kb():
+# --- لوحة التحكم الرئيسية ---
+def main_admin_kb():
     kb = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    set_db = load_json("settings.json")
-    notif_text = "إيقاف الإشعارات ❌" if set_db.get("notifications") else "تفعيل الإشعارات ✅"
+    conf = json.load(open("settings.json"))
+    n_status = "إيقاف الإشعارات ❌" if conf.get("notifications") else "تفعيل الإشعارات ✅"
     kb.row("نشر تلقائي 📣", "إضافة ملفات 📤")
     kb.row("إرسال إذاعة 📣", "الإحصائيات 📊")
-    kb.row("إضافة اشتراك 🔗", notif_text)
+    kb.row("إضافة اشتراك 🔗", n_status)
     kb.row("تنظيف البيانات 🧹", "تصفير الملفات 🗑️")
     kb.row("إضافة أدمن ➕", "إنهاء ✅")
     return kb
 
-def broadcast_kb():
-    kb = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    kb.row("إذاعة قناة 📢", "إذاعة مستخدمين 👥")
-    kb.row("إذاعة الجميع 🌐", "رجوع 🔙")
-    return kb
-
-# --- معالجة الرسائل ---
+# --- معالجة أمر البداية /start ---
 @bot.message_handler(commands=['start'])
-def start(message):
+def start_cmd(message):
     uid = message.from_user.id
-    conf = load_json("settings.json")
+    conf = json.load(open("settings.json"))
     
-    # 1. الاشتراك الإجباري
+    # 1. التحقق من الاشتراك الإجباري أولاً
     if not is_subscribed(uid):
         mk = types.InlineKeyboardMarkup()
-        mk.add(types.InlineKeyboardButton("اشترك هنا أولاً 📢", url=conf["sub_link"]))
-        mk.add(types.InlineKeyboardButton("تحقق من الاشتراك ✅", callback_data="check_sub"))
-        return bot.send_message(uid, "⚠️ يجب أن تشترك في القناة أولاً!", reply_markup=mk)
+        mk.add(types.InlineKeyboardButton("اضغط هنا للاشتراك 📢", url=conf["sub_link"]))
+        mk.add(types.InlineKeyboardButton("تحقق من الاشتراك ✅", callback_data="verify_sub"))
+        return bot.send_message(uid, f"⚠️ عذراً، يجب الاشتراك في القناة {conf['channel_id']} أولاً!", reply_markup=mk)
 
-    # 2. لوحة الأدمن (الأولوية للمالك)
-    if is_admin(uid):
-        return bot.send_message(uid, "👑 مرحباً بك في لوحة الإدارة:", reply_markup=admin_kb())
+    # 2. إذا كان أدمن تظهر له اللوحة فوراً
+    admins = json.load(open("admins.json"))
+    if uid == OWNER_ID or str(uid) in map(str, admins):
+        return bot.send_message(uid, "👑 أهلاً بك في لوحة الإدارة:", reply_markup=main_admin_kb())
 
-    # 3. تسجيل المستخدمين العاديين مع الحد (15)
-    users = get_list("users.txt")
+    # 3. تسجيل المستخدم العادي مع فحص الحد (15)
+    with open("users.txt", "r") as f: users = f.read().splitlines()
+    
     if str(uid) not in users:
         if len(users) >= MAX_USERS:
-            return bot.send_message(uid, "❌ نعتذر، وصل البوت للحد الأقصى من المشتركين.")
-        users.append(str(uid))
-        save_list("users.txt", users)
+            return bot.send_message(uid, "❌ نعتذر، البوت وصل للحد الأقصى من المستخدمين (15/15).")
+        with open("users.txt", "a") as f: f.write(f"{uid}\n")
         
-        # الإشعارات للمالك
+        # إرسال إشعار للمالك
         if conf.get("notifications"):
-            bot.send_message(OWNER_ID, f"🔔 مستخدم جديد سجل الآن:\nالاسم: {message.from_user.first_name}\nالآيدي: {uid}")
+            bot.send_message(OWNER_ID, f"🔔 عضو جديد سجل:\nالاسم: {message.from_user.first_name}\nالآيدي: {uid}")
 
-    bot.send_message(uid, "👋 أهلاً بك! تم تفعيل اشتراكك في البوت.")
+    bot.send_message(uid, "✅ تم تفعيل البوت بنجاح!")
 
-# --- منطق أزرار الأدمن ---
-@bot.message_handler(func=lambda m: is_admin(m.from_user.id))
-def handle_admin(message):
+# --- معالجة الأزرار (Admin Logic) ---
+@bot.message_handler(func=lambda m: True)
+def admin_buttons(message):
     uid, text = message.from_user.id, message.text
-    conf = load_json("settings.json")
+    admins = json.load(open("admins.json"))
+    if not (uid == OWNER_ID or str(uid) in map(str, admins)): return
 
     if text == "الإحصائيات 📊":
-        u_list = get_list("users.txt")
-        act = load_json("activity.json")
+        with open("users.txt", "r") as f: u_count = len(f.read().splitlines())
+        act = json.load(open("activity.json"))
         h = sum(len(v.get("h", [])) for v in act.values())
         r = sum(len(v.get("r", [])) for v in act.values())
-        bot.send_message(uid, f"📊 **الإحصائيات الحقيقية:**\n\n👥 المشتركين: {len(u_list)}/{MAX_USERS}\n❤️ التفاعلات: {h}\n📩 الاستلام: {r}")
+        bot.send_message(uid, f"📊 **إحصائيات البوت:**\n\n👥 مستخدمين: {u_count} / {MAX_USERS}\n❤️ تفاعلات: {h}\n📩 استلام: {r}")
 
     elif text == "تنظيف البيانات 🧹":
-        save_json("activity.json", {})
-        bot.send_message(uid, "✅ تم تنظيف سجل التفاعلات بالكامل.")
+        with open("activity.json", "w") as f: f.write("{}")
+        bot.send_message(uid, "🧹 تم تصفير عدادات القناة (تفاعل/استلام).")
 
     elif text == "تصفير الملفات 🗑️":
-        save_list("bot_files.txt", [])
-        bot.send_message(uid, "✅ تم تصفير جميع الملفات المرفوعة.")
-
-    elif "الإشعارات" in text:
-        conf["notifications"] = not conf.get("notifications", True)
-        save_json("settings.json", conf)
-        bot.send_message(uid, "⚙️ تم تغيير حالة الإشعارات.", reply_markup=admin_kb())
+        with open("bot_files.txt", "w") as f: f.write("")
+        bot.send_message(uid, "🗑️ تم حذف جميع ملفات البوت.")
 
     elif text == "إضافة أدمن ➕":
-        m = bot.send_message(uid, "🆔 أرسل آيدي الأدمن الجديد (أرقام فقط):")
-        bot.register_next_step_handler(m, save_admin_final)
+        m = bot.send_message(uid, "🆔 أرسل آيدي الأدمن الجديد:")
+        bot.register_next_step_handler(m, save_admin)
 
-    elif text == "إرسال إذاعة 📣":
-        bot.send_message(uid, "🎯 اختر نوع الإذاعة:", reply_markup=broadcast_kb())
+    elif text == "إضافة اشتراك 🔗":
+        m = bot.send_message(uid, "🔗 أرسل رابط القناة الجديد (مثل: https://t.me/...)")
+        bot.register_next_step_handler(m, save_sub)
 
-    # (بقية الدوال مثل إذاعة قناة/مستخدمين تبقى كما هي في الكود السابق)
-
-def save_admin_final(message):
+# --- توابع الحفظ ---
+def save_admin(message):
     if message.text.isdigit():
-        ad = load_json("admins.json")
+        ad = json.load(open("admins.json"))
         ad.append(message.text)
-        save_json("admins.json", list(set(ad)))
-        bot.send_message(message.from_user.id, "✅ تم إضافة الأدمن بنجاح.")
-    else:
-        bot.send_message(message.from_user.id, "❌ خطأ في الآيدي.")
+        with open("admins.json", "w") as f: json.dump(list(set(ad)), f)
+        bot.send_message(message.from_user.id, "✅ تم إضافة الأدمن.")
+    else: bot.send_message(message.from_user.id, "❌ آيدي خاطئ.")
 
-@bot.callback_query_handler(func=lambda call: call.data == "check_sub")
-def check_sub(call):
+def save_sub(message):
+    if "t.me/" in message.text:
+        conf = json.load(open("settings.json"))
+        conf["sub_link"] = message.text
+        conf["channel_id"] = "@" + message.text.split("t.me/")[1].split("/")[0]
+        with open("settings.json", "w") as f: json.dump(conf, f)
+        bot.send_message(message.from_user.id, "✅ تم تحديث رابط الاشتراك.")
+    else: bot.send_message(message.from_user.id, "❌ رابط غير صالح.")
+
+# --- زر التحقق من الاشتراك ---
+@bot.callback_query_handler(func=lambda call: call.data == "verify_sub")
+def verify(call):
     if is_subscribed(call.from_user.id):
         bot.delete_message(call.message.chat.id, call.message.message_id)
-        start(call.message)
+        start_cmd(call.message)
     else:
-        bot.answer_callback_query(call.id, "❌ مازلت غير مشترك!", show_alert=True)
+        bot.answer_callback_query(call.id, "❌ لم تشترك بعد في القناة!", show_alert=True)
 
 if __name__ == "__main__":
     bot.infinity_polling()
