@@ -2,18 +2,27 @@ import telebot
 from telebot import types
 import os, json
 
-# --- الإعدادات ---
+# --- الإعدادات الأولية ---
 TOKEN = "8401184550:AAH0x8_WC-h3kxOn4RoP3ASTOm7n84TJteU"
 OWNER_ID = 8611300267 
-CHANNEL_ID = "@Uchiha75" 
 BOT_USERNAME = "gudurjbot"
 MAX_USERS = 15
 
 bot = telebot.TeleBot(TOKEN)
 
-# --- نظام البيانات ---
+# --- نظام إدارة البيانات ---
 def init_files():
-    files = {"users.txt": "", "bot_files.txt": "", "admins.json": "[]", "settings.json": '{"notifications": true}', "activity.json": "{}"}
+    files = {
+        "users.txt": "", 
+        "bot_files.txt": "", 
+        "admins.json": "[]", 
+        "activity.json": "{}",
+        "settings.json": json.dumps({
+            "notifications": True, 
+            "channel_id": "@Uchiha75", 
+            "sub_link": "https://t.me/Uchiha75"
+        })
+    }
     for file, content in files.items():
         if not os.path.exists(file):
             with open(file, "w", encoding="utf-8") as f: f.write(content)
@@ -38,8 +47,9 @@ def is_admin(uid):
     return int(uid) == OWNER_ID or str(uid) in map(str, admins)
 
 def is_subscribed(uid):
+    conf = load_json("settings.json")
     try:
-        status = bot.get_chat_member(CHANNEL_ID, uid).status
+        status = bot.get_chat_member(conf["channel_id"], uid).status
         return status in ['member', 'administrator', 'creator']
     except: return False
 
@@ -49,10 +59,10 @@ def admin_kb():
     set_db = load_json("settings.json")
     notif_text = "إيقاف الإشعارات ❌" if set_db.get("notifications") else "تفعيل الإشعارات ✅"
     kb.row("نشر تلقائي 📣", "إضافة ملفات 📤")
-    kb.row("إرسال إذاعة 📣", "الإحصائيات 📊") # الزر الجديد الموحد
-    kb.row(notif_text, "تنظيف البيانات 🧹")
-    kb.row("تصفير الملفات 🗑️", "إضافة أدمن ➕")
-    kb.row("إنهاء ✅")
+    kb.row("إرسال إذاعة 📣", "الإحصائيات 📊")
+    kb.row("إضافة اشتراك 🔗", notif_text) # الزر الجديد هنا
+    kb.row("تنظيف البيانات 🧹", "تصفير الملفات 🗑️")
+    kb.row("إضافة أدمن ➕", "إنهاء ✅")
     return kb
 
 def broadcast_kb():
@@ -65,20 +75,22 @@ def broadcast_kb():
 @bot.message_handler(commands=['start'])
 def start(message):
     uid = message.from_user.id
+    conf = load_json("settings.json")
+    
     if not is_subscribed(uid):
         mk = types.InlineKeyboardMarkup()
-        mk.add(types.InlineKeyboardButton("اشترك في القناة 📢", url=f"https://t.me/{CHANNEL_ID[1:]}"))
+        mk.add(types.InlineKeyboardButton("اشترك هنا أولاً 📢", url=conf["sub_link"]))
         mk.add(types.InlineKeyboardButton("تحقق من الاشتراك ✅", callback_data="check_sub"))
-        return bot.send_message(uid, "⚠️ اشترك أولاً لتشغيل البوت!", reply_markup=mk)
+        return bot.send_message(uid, "⚠️ يجب أن تشترك في القناة لتفعيل البوت!", reply_markup=mk)
 
     if is_admin(uid):
         return bot.send_message(uid, "👑 لوحة التحكم:", reply_markup=admin_kb())
 
     users = get_list("users.txt")
     if str(uid) not in users:
-        if len(users) >= MAX_USERS: return bot.send_message(uid, "❌ اكتمل الحد الأقصى.")
+        if len(users) >= MAX_USERS: return bot.send_message(uid, "❌ نعتذر، البوت مكتمل.")
         users.append(str(uid)); save_list("users.txt", users)
-    bot.send_message(uid, "👋 أهلاً بك!")
+    bot.send_message(uid, "👋 أهلاً بك! تم تفعيل البوت.")
 
 # --- منطق الأزرار ---
 @bot.message_handler(func=lambda m: is_admin(m.from_user.id))
@@ -88,6 +100,10 @@ def handle_admin(message):
     if text == "إرسال إذاعة 📣":
         bot.send_message(uid, "🎯 اختر نوع الإذاعة:", reply_markup=broadcast_kb())
 
+    elif text == "إضافة اشتراك 🔗":
+        msg = bot.send_message(uid, "🔗 أرسل الآن رابط الاشتراك الجديد (مثل: https://t.me/...)")
+        bot.register_next_step_handler(msg, update_sub_link)
+
     elif text == "رجوع 🔙":
         bot.send_message(uid, "🔙 العودة للرئيسية:", reply_markup=admin_kb())
 
@@ -96,42 +112,51 @@ def handle_admin(message):
         act = load_json("activity.json")
         h = sum(len(v.get("h", [])) for v in act.values())
         r = sum(len(v.get("r", [])) for v in act.values())
-        bot.send_message(uid, f"📊 **الإحصائيات:**\n👤 مشتركين: {u}/{MAX_USERS}\n❤️ تفاعلات: {h}\n📩 استلام: {r}")
+        bot.send_message(uid, f"📊 **الإحصائيات:**\n👤 مستخدمين: {u}/{MAX_USERS}\n❤️ تفاعلات: {h}\n📩 استلام: {r}")
 
     elif text == "إذاعة قناة 📢":
+        conf = load_json("settings.json")
         m = bot.send_message(uid, "📢 أرسل الرسالة لنشرها في القناة:")
-        bot.register_next_step_handler(m, lambda msg: bot.copy_message(CHANNEL_ID, msg.chat.id, msg.message_id))
+        bot.register_next_step_handler(m, lambda msg: bot.copy_message(conf["channel_id"], msg.chat.id, msg.message_id))
 
     elif text == "إذاعة مستخدمين 👥":
-        m = bot.send_message(uid, "👥 أرسل الرسالة لإذاعتها للمشتركين فقط:")
+        m = bot.send_message(uid, "👥 أرسل الرسالة للمشتركين:")
         bot.register_next_step_handler(m, lambda msg: broadcast_action(msg, "users"))
 
     elif text == "إذاعة الجميع 🌐":
-        m = bot.send_message(uid, "🌐 أرسل رسالة لنشرها في القناة وللمستخدمين معاً:")
+        m = bot.send_message(uid, "🌐 أرسل رسالة للجميع (قناة + خاص):")
         bot.register_next_step_handler(m, lambda msg: broadcast_action(msg, "all"))
 
-    # بقية الأزرار (تنظيف، إضافة أدمن، إلخ...)
-    elif text == "تنظيف البيانات 🧹":
-        save_json("activity.json", {}); bot.send_message(uid, "✅ تم التنظيف.")
+def update_sub_link(message):
+    if "t.me/" in message.text:
+        conf = load_json("settings.json")
+        conf["sub_link"] = message.text
+        # استخراج المعرف تلقائياً من الرابط
+        ch_username = "@" + message.text.split("t.me/")[1].split("/")[0]
+        conf["channel_id"] = ch_username
+        save_json("settings.json", conf)
+        bot.send_message(message.from_user.id, f"✅ تم تحديث الاشتراك إلى:\nالمعرف: {ch_username}\nالرابط: {message.text}", reply_markup=admin_kb())
+    else:
+        bot.send_message(message.from_user.id, "❌ رابط غير صحيح، يجب أن يحتوي على t.me/")
 
 def broadcast_action(message, mode):
     users = get_list("users.txt")
-    sent = 0
+    conf = load_json("settings.json")
     if mode == "all":
-        try: bot.copy_message(CHANNEL_ID, message.chat.id, message.message_id)
+        try: bot.copy_message(conf["channel_id"], message.chat.id, message.message_id)
         except: pass
-    
     for u in users:
-        try: bot.copy_message(u, message.chat.id, message.message_id); sent += 1
+        try: bot.copy_message(u, message.chat.id, message.message_id)
         except: pass
-    bot.send_message(message.from_user.id, f"✅ تم الإرسال بنجاح إلى {sent} مستخدم.", reply_markup=admin_kb())
+    bot.send_message(message.from_user.id, "✅ تمت الإذاعة بنجاح.", reply_markup=admin_kb())
 
 @bot.callback_query_handler(func=lambda call: call.data == "check_sub")
 def check_sub(call):
     if is_subscribed(call.from_user.id):
         bot.delete_message(call.message.chat.id, call.message.message_id)
         start(call.message)
-    else: bot.answer_callback_query(call.id, "❌ لم تشترك!", show_alert=True)
+    else: bot.answer_callback_query(call.id, "❌ لم تشترك بعد!", show_alert=True)
 
 if __name__ == "__main__":
     bot.infinity_polling()
+
