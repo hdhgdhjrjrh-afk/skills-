@@ -5,7 +5,7 @@ import json
 import time
 
 # --- الإعدادات الأساسية ---
-TOKEN = "8665176617:AAFngE0bDW_aRpMP-9VIsGuWiSf2NCwqWl8"
+TOKEN = "8665176617:AAG4TGTAvkE1EsC-3xM8BgMAcHERi1Dde9Y"
 OWNER_ID = 7985499470
 CHANNEL_ID = "@Uchiha75"  # تأكد أن البوت مشرف هنا
 BOT_USERNAME = "fountainsbot"
