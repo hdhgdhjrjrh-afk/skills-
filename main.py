@@ -6,7 +6,7 @@ import time
 
 # --- 1. الإعدادات الأساسية ---
 TOKEN = "8401184550:AAH0x8_WC-h3kxOn4RoP3ASTOm7n84TJteU"
-OWNER_ID = 7985499470 
+OWNER_ID = 8611300267 
 CHANNEL_ID = "@Uchiha75"
 BOT_USERNAME = "gudurjbot"
 
