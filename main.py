@@ -4,15 +4,15 @@ import os
 import json
 import time
 
-# --- الإعدادات الأساسية ---
-TOKEN = "8665176617:AAG4TGTAvkE1EsC-3xM8BgMAcHERi1Dde9Y"
+# --- الإعدادات الأساسية الجديدة ---
+TOKEN = "8401184550:AAH0x8_WC-h3kxOn4RoP3ASTOm7n84TJteU"
 OWNER_ID = 7985499470
 CHANNEL_ID = "@Uchiha75"
-BOT_USERNAME = "fountainsbot"
+BOT_USERNAME = "gudurjbot"
 
 bot = telebot.TeleBot(TOKEN)
 
-# تجهيز ملفات النظام لضمان عدم حدوث خطأ في الاستجابة
+# تجهيز ملفات النظام لضمان الاستقرار
 FILES = ["users.txt", "bot_files.txt", "activity.json", "ban_list.json"]
 for f in FILES:
     if not os.path.exists(f):
@@ -69,17 +69,15 @@ def start_logic(message):
     uid = str(message.from_user.id)
     uname = message.from_user.first_name
     
-    # تسجيل مستخدم جديد
     users = get_list("users.txt")
     if uid not in users:
         with open("users.txt", "a") as f: f.write(uid + "\n")
         try: bot.send_message(OWNER_ID, f"👤 **مستخدم جديد دخل للبوت:**\nالاسم: {uname}\nالايدي: `{uid}`", parse_mode="Markdown")
         except: pass
 
-    # معالجة روابط الاستلام
     if "get_" in message.text:
         if not is_subscribed(uid):
-            bot.send_message(uid, f"⚠️ يجب الاشتراك في القناة أولاً:\n{CHANNEL_ID}")
+            bot.send_message(uid, f"⚠️ يجب الاشتراك في القناة أولاً لتتمكن من الاستلام:\n{CHANNEL_ID}")
             return
         mid = message.text.split("_")[1]
         act = load_data("activity.json")
@@ -89,15 +87,14 @@ def start_logic(message):
                 save_data("activity.json", act)
             files = get_list("bot_files.txt")
             if files:
-                bot.send_message(uid, "✅ تفضل ملفاتك:")
+                bot.send_message(uid, "✅ تفضل الملفات المطلوبة:")
                 for fid in files: bot.send_document(uid, fid)
-            else: bot.send_message(uid, "❌ لا توجد ملفات.")
-        else: bot.send_message(uid, "⚠️ تفاعل ❤️ أولاً في القناة!")
+            else: bot.send_message(uid, "❌ السجل فارغ حالياً.")
+        else: bot.send_message(uid, "⚠️ تفاعل ❤️ أولاً على المنشور في القناة!")
         return
 
-    # إظهار اللوحة للمالك (أهم جزء للاستجابة)
     if int(uid) == OWNER_ID:
-        bot.send_message(uid, f"👑 أهلاً يا مدير {uname}.. تم تفعيل اللوحة:", reply_markup=get_admin_panel())
+        bot.send_message(uid, f"👑 مرحباً يا مدير {uname}.. تم تفعيل لوحة التحكم:", reply_markup=get_admin_panel())
     else:
         bot.send_message(uid, f"👋 أهلاً {uname} في البوت.\nتابع القناة {CHANNEL_ID} للحصول على ملفاتك.")
 
@@ -111,26 +108,26 @@ def admin_handler(message):
 
     if text == "نشر تلقائي 📣":
         f_count = len(get_list("bot_files.txt"))
-        msg = bot.send_message(CHANNEL_ID, f"⚡ **تم تحديث الملفات!**\n\n📂 العدد: `{f_count}`\n⚠️ تفاعل ❤️ للاستلام.", parse_mode="Markdown")
+        msg = bot.send_message(CHANNEL_ID, f"⚡ **تم تحديث الملفات بنجاح!**\n\n📁 العدد المتوفر: `{f_count}`\n⚠️ تفاعل ❤️ أولاً ثم اضغط استلم.", parse_mode="Markdown")
         bot.edit_message_reply_markup(CHANNEL_ID, msg.message_id, reply_markup=channel_markup(str(msg.message_id)))
-        bot.send_message(uid, "✅ تم النشر.")
+        bot.send_message(uid, "✅ تم النشر في القناة.")
 
     elif text == "إضافة ملفات 📤":
         bot.send_message(uid, "📥 أرسل الملفات الآن، ثم اضغط **إنهاء ✅**", reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add("إنهاء ✅"))
         bot.register_next_step_handler(message, process_upload)
 
     elif text == "إذاعة شاملة 👥":
-        msg = bot.send_message(uid, "👥 أرسل رسالة الإذاعة:")
+        msg = bot.send_message(uid, "👥 أرسل رسالة الإذاعة (نص أو وسائط):")
         bot.register_next_step_handler(msg, start_broadcast)
 
     elif text == "الإحصائيات 📊":
         act = load_data("activity.json")
         inter = len(set(u for m in act for u in act[m].get("u_interact", [])))
         receiv = len(set(u for m in act for u in act[m].get("u_receive", [])))
-        msg = (f"📊 **إحصائياتك:**\n\n👤 المستخدمين: `{len(get_list('users.txt'))}`\n"
-               f"📂 الملفات: `{len(get_list('bot_files.txt'))}`\n"
-               f"❤️ متفاعلون: `{inter}`\n📩 مستلمون: `{receiv}`")
-        bot.send_message(uid, msg, parse_mode="Markdown", reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("♻️ تصفير", callback_data="reset_stats")))
+        msg = (f"📊 **إحصائيات البوت:**\n\n👤 إجمالي المستخدمين: `{len(get_list('users.txt'))}`\n"
+               f"📂 الملفات المتوفرة: `{len(get_list('bot_files.txt'))}`\n"
+               f"❤️ المتفاعلون الفريدون: `{inter}`\n📩 المستلمون الفريدون: `{receiv}`")
+        bot.send_message(uid, msg, parse_mode="Markdown", reply_markup=types.InlineKeyboardMarkup().add(types.InlineKeyboardButton("♻️ تصفير التفاعل", callback_data="reset_stats")))
 
     elif text == "نسخة احتياطية 📥":
         for f in ["users.txt", "activity.json", "bot_files.txt"]:
@@ -139,19 +136,19 @@ def admin_handler(message):
 
     elif text == "تصفير الملفات 🗑️":
         open("bot_files.txt", "w").close()
-        bot.send_message(uid, "🗑️ تم التصفير.")
+        bot.send_message(uid, "🗑️ تم تصفير سجل الملفات بنجاح.")
 
     elif text == "إنهاء ✅":
-        bot.send_message(uid, "🛑 تم الخروج.", reply_markup=types.ReplyKeyboardRemove())
+        bot.send_message(uid, "🛑 تم الخروج من وضع التحكم.", reply_markup=types.ReplyKeyboardRemove())
 
 def process_upload(message):
     if message.text == "إنهاء ✅":
-        bot.send_message(message.from_user.id, "✅ تم الحفظ.", reply_markup=get_admin_panel())
+        bot.send_message(message.from_user.id, "✅ تم الحفظ بنجاح.", reply_markup=get_admin_panel())
         return
     fid = message.document.file_id if message.document else message.photo[-1].file_id if message.photo else None
     if fid:
         with open("bot_files.txt", "a") as f: f.write(fid + "\n")
-        bot.send_message(message.from_user.id, "📥 استلمت..")
+        bot.send_message(message.from_user.id, "📥 استلمت الملف..")
     bot.register_next_step_handler(message, process_upload)
 
 def start_broadcast(message):
@@ -163,7 +160,7 @@ def start_broadcast(message):
     bot.send_message(OWNER_ID, f"✅ اكتملت الإذاعة لـ {success} مستخدم.")
 
 # ==========================================
-# التشغيل النهائي وحل مشكلة الاستجابة
+# معالجة التفاعل والتشغيل
 # ==========================================
 @bot.callback_query_handler(func=lambda call: True)
 def handle_calls(call):
@@ -175,16 +172,15 @@ def handle_calls(call):
         if uid not in act[mid]["u_interact"]:
             act[mid]["u_interact"].append(uid)
             save_data("activity.json", act)
-            bot.answer_callback_query(call.id, "❤️ تم التفاعل!")
+            bot.answer_callback_query(call.id, "❤️ شكراً لتفاعلك!")
             bot.edit_message_reply_markup(CHANNEL_ID, int(mid), reply_markup=channel_markup(mid, len(act[mid]["u_interact"])))
-        else: bot.answer_callback_query(call.id, "⚠️ متفاعل مسبقاً!", show_alert=True)
+        else: bot.answer_callback_query(call.id, "⚠️ لقد تفاعلت مسبقاً!", show_alert=True)
     elif call.data == "reset_stats" and int(uid) == OWNER_ID:
         save_data("activity.json", {})
-        bot.answer_callback_query(call.id, "♻️ تم التصفير.")
+        bot.answer_callback_query(call.id, "♻️ تم تصفير إحصائيات التفاعل.")
 
 if __name__ == "__main__":
-    print("-" * 30 + "\n✅ BOT IS NOW ACTIVE\n" + "-" * 30)
-    # حل مشكلة عدم الاستجابة: تنظيف الـ Webhook وفتح Polling جديد
+    print("-" * 30 + f"\n🚀 BOT @{BOT_USERNAME} IS NOW ONLINE\n" + "-" * 30)
     bot.remove_webhook()
     time.sleep(1)
     bot.polling(none_stop=True, interval=0, timeout=25)
