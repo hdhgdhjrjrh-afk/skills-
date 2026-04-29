@@ -23,7 +23,7 @@ for f in FILES:
             else: file.write("")
 
 # ==========================================
-# 2. دالات إدارة البيانات (الدقة في الفحص)
+# 2. دالات إدارة البيانات
 # ==========================================
 def load_json(filename):
     try:
@@ -42,15 +42,13 @@ def is_admin(user_id):
     return user_id == OWNER_ID or user_id in admins
 
 # ==========================================
-# 3. فحص وتدقيق لوحات التحكم (UI)
+# 3. لوحات التحكم (الواجهات)
 # ==========================================
 
-# لوحة تحكم الأدمن (الفحص: شاملة لكل الأزرار المطلوبة)
+# لوحة تحكم الأدمن (التي تظهر في الخاص)
 def get_admin_panel(user_id):
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     settings = load_json("settings.json")
-    
-    # تبديل زر الإشعارات ديناميكياً
     notif_btn = "إيقاف الإشعارات ❌" if settings.get("notifications", True) else "تفعيل الإشعارات ✅"
     
     markup.add(types.KeyboardButton("نشر في القناة 📢"), types.KeyboardButton("إضافة ملفات 📤"))
@@ -63,7 +61,7 @@ def get_admin_panel(user_id):
     markup.add(types.KeyboardButton("إنهاء ✅"))
     return markup
 
-# أزرار المنشور (الفحص: سطرين متناسقين)
+# أزرار القناة الشفافة (مع العدادات)
 def get_channel_markup(mid, interact_count=0, receive_count=0):
     markup = types.InlineKeyboardMarkup(row_width=2)
     markup.row(
@@ -82,7 +80,7 @@ def handle_start(message):
     uid = message.from_user.id
     users = get_list("users.txt")
     
-    # إشعار دخول مستخدم جديد (فحص: يرسل التفاصيل كاملة)
+    # إشعار دخول جديد للمطور
     if str(uid) not in users and "activate" not in message.text:
         settings = load_json("settings.json")
         if settings.get("notifications", True):
@@ -94,19 +92,21 @@ def handle_start(message):
             try: bot.send_message(OWNER_ID, noti, parse_mode="Markdown")
             except: pass
 
+    # تفعيل البوت
     if "activate" in message.text:
         if str(uid) not in users:
             with open("users.txt", "a") as f: f.write(f"{uid}\n")
-        bot.send_message(uid, "✅ تم تفعيل البوت! يمكنك الآن التفاعل والاستلام من القناة.")
+        bot.send_message(uid, "✅ تم تفعيل البوت بنجاح! يمكنك الآن الاستلام من القناة.")
         return
 
+    # توجيه الأدمن أو المستخدم
     if is_admin(uid):
-        bot.send_message(uid, "👑 أهلاً بك في لوحة الإدارة الرئيسية:", reply_markup=get_admin_panel(uid))
+        bot.send_message(uid, "👑 أهلاً بك في لوحة تحكم الإدارة:", reply_markup=get_admin_panel(uid))
     else:
-        bot.send_message(uid, "👋 أهلاً بك! أنا بوت استلام ملفات القناة.")
+        bot.send_message(uid, "👋 أهلاً بك! استخدم الأزرار في القناة لاستلام ملفاتك.")
 
 # ==========================================
-# 5. معالجة الأزرار (فحص: منع التكرار 100%)
+# 5. معالجة الأزرار الشفافة ومنع التكرار
 # ==========================================
 
 @bot.callback_query_handler(func=lambda call: True)
@@ -115,12 +115,12 @@ def handle_callbacks(call):
     users = get_list("users.txt")
 
     if str(uid) not in users:
-        return bot.answer_callback_query(call.id, "⚠️ يجب تفعيل البوت أولاً بالضغط على الزر بالأسفل!", show_alert=True)
+        return bot.answer_callback_query(call.id, "⚠️ يجب تفعيل البوت أولاً (اضغط الزر بالأسفل)!", show_alert=True)
 
     act = load_json("activity.json")
     if mid not in act: act[mid] = {"h": [], "r": []}
 
-    # فحص ومنع تكرار التفاعل ❤️
+    # التفاعل ❤️
     if "hit_" in data:
         if uid not in act[mid]["h"]:
             act[mid]["h"].append(uid)
@@ -130,26 +130,26 @@ def handle_callbacks(call):
                                           reply_markup=get_channel_markup(mid, len(act[mid]["h"]), len(act[mid]["r"])))
         else: bot.answer_callback_query(call.id, "⚠️ لقد تفاعلت مسبقاً!", show_alert=True)
 
-    # فحص ومنع تكرار الاستلام 📩
+    # الاستلام 📩
     elif "rcv_" in data:
         if uid not in act[mid]["r"]:
             act[mid]["r"].append(uid)
             save_json("activity.json", act)
-            bot.answer_callback_query(call.id, "📩 تم تسجيل الاستلام، تفقد الخاص!")
+            bot.answer_callback_query(call.id, "📩 تفقد الخاص.. جاري الإرسال!")
             bot.edit_message_reply_markup(call.message.chat.id, int(mid), 
                                           reply_markup=get_channel_markup(mid, len(act[mid]["h"]), len(act[mid]["r"])))
             
             files = get_list("bot_files.txt")
             if files:
-                bot.send_message(uid, "📦 إليك جميع الملفات المرفوعة حالياً:")
+                bot.send_message(uid, f"📦 تم استلام {len(files)} ملفات من التحديث الجديد:")
                 for f in files:
                     try: bot.send_document(uid, f)
                     except: pass
-            else: bot.send_message(uid, "⚠️ لا توجد ملفات مرفوعة حالياً.")
+            else: bot.send_message(uid, "⚠️ عذراً، لا توجد ملفات مرفوعة حالياً.")
         else: bot.answer_callback_query(call.id, "⚠️ لقد استلمت الملفات مسبقاً!", show_alert=True)
 
 # ==========================================
-# 6. فحص عمليات لوحة التحكم (Admin Panel Logic)
+# 6. أوامر لوحة التحكم (الأدمن)
 # ==========================================
 
 @bot.message_handler(func=lambda m: is_admin(m.from_user.id))
@@ -157,39 +157,62 @@ def admin_commands(message):
     uid, text = message.from_user.id, message.text
     
     if text == "نشر في القناة 📢":
+        files_count = len(get_list("bot_files.txt"))
         msg_text = (
             "⚡ **تم تجديد الكونفيجات!**\n\n"
-            "📄 عدد الملفات المتاحة: 4\n"
+            f"📄 عدد الملفات المتاحة: {files_count}\n"
             "🚀 سرعة عالية | ⏳ محدد المدة\n"
-            "__________________________\n"
+            "__________________________\n\n"
             "📌 **طريقة الاستلام:**\n"
             "1️⃣ فعّل البوت أولاً (🤖)\n"
             "2️⃣ ادعمنا بتفاعل (❤️)\n"
             "3️⃣ اضغط استلام (📩)\n"
-            "__________________________"
+            "__________________________\n\n"
+            "⚠️ سارع قبل انتهاء الصلاحية!"
         )
-        # إرسال المنشور للقناة
         bot.send_message(CHANNEL_ID, msg_text, reply_markup=get_channel_markup("main"), parse_mode="Markdown")
-        bot.send_message(uid, "✅ تم النشر في القناة بنجاح.")
+        bot.send_message(uid, f"✅ تم النشر بنجاح. (العدد التلقائي: {files_count})")
+
+    elif text == "إضافة ملفات 📤":
+        msg = bot.send_message(uid, "📤 أرسل الملفات الآن.. ثم اضغط إنهاء ✅", 
+                               reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add("إنهاء ✅"))
+        bot.register_next_step_handler(msg, process_upload)
 
     elif "الإشعارات" in text:
         settings = load_json("settings.json")
         settings["notifications"] = not settings.get("notifications", True)
         save_json("settings.json", settings)
-        bot.send_message(uid, "⚙️ تم تحديث حالة الإشعارات.", reply_markup=get_admin_panel(uid))
+        status = "تفعيل" if settings["notifications"] else "إيقاف"
+        bot.send_message(uid, f"🔔 تم {status} إشعارات الدخول بنجاح.", reply_markup=get_admin_panel(uid))
 
     elif text == "الإحصائيات 📊":
-        users = get_list("users.txt")
-        bot.send_message(uid, f"📊 عدد المشتركين: `{len(users)}`", parse_mode="Markdown")
+        u_count = len(get_list("users.txt"))
+        f_count = len(get_list("bot_files.txt"))
+        bot.send_message(uid, f"📊 **إحصائيات البوت:**\n\n👥 مستخدمين: `{u_count}`\n📂 ملفات: `{f_count}`", parse_mode="Markdown")
 
     elif text == "تصفير الملفات 🗑️":
         open("bot_files.txt", "w").close()
-        bot.send_message(uid, "🗑️ تم مسح سجل الملفات بالكامل.")
+        bot.send_message(uid, "🗑️ تم مسح جميع الملفات من السجل.")
 
     elif text == "إنهاء ✅":
         bot.send_message(uid, "🛑 تم إغلاق لوحة التحكم.", reply_markup=types.ReplyKeyboardRemove())
 
-if __name__ == "__main__":
-    print("🔥 تم فحص الكود وتشغيله.. لوحة التحكم جاهزة!")
-    bot.infinity_polling()
+# دالة رفع الملفات
+def process_upload(message):
+    if message.text == "إنهاء ✅":
+        bot.send_message(message.from_user.id, "✅ تم الحفظ بنجاح.", reply_markup=get_admin_panel(message.from_user.id))
+        return
+    
+    file_id = None
+    if message.document: file_id = message.document.file_id
+    elif message.photo: file_id = message.photo[-1].file_id
+    
+    if file_id:
+        with open("bot_files.txt", "a") as f: f.write(f"{file_id}\n")
+        bot.send_message(message.from_user.id, "📥 تم الاستلام.. أرسل المزيد أو اضغط إنهاء ✅")
+    
+    bot.register_next_step_handler(message, process_upload)
 
+if __name__ == "__main__":
+    print("🚀 البوت يعمل الآن.. جميع الإصلاحات مدمجة!")
+    bot.infinity_polling()
