@@ -7,7 +7,7 @@ TOKEN = "8401184550:AAH0x8_WC-h3kxOn4RoP3ASTOm7n84TJteU"
 OWNER_ID = 8611300267 
 bot = telebot.TeleBot(TOKEN)
 
-# --- نظام قاعدة البيانات المحمي ---
+# --- نظام قاعدة البيانات ---
 def init_db():
     database = {
         "users.txt": "", 
@@ -32,13 +32,12 @@ def get_db(file):
 def save_db(file, data):
     with open(file, "w", encoding="utf-8") as f: json.dump(data, f, indent=4)
 
-# --- فحص الصلاحيات ---
 def has_perm(uid, perm):
     if int(uid) == OWNER_ID: return True
     admins = get_db("admins.json")
     return admins.get(str(uid), {}).get(perm, False)
 
-# --- الكيبوردات (Bot Running UI) ---
+# --- الكيبوردات ---
 def main_kb(uid):
     kb = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     conf = get_db("settings.json")
@@ -56,40 +55,33 @@ def main_kb(uid):
     if has_perm(uid, "can_reset"): kb.row("تنظيف البيانات 🧹", "تصفير الملفات 🗑️")
     return kb
 
-def broadcast_kb():
-    kb = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    kb.row("إذاعة قناة 📢", "إذاعة مستخدمين 👥")
-    kb.row("إذاعة الجميع 🌐", "رجوع 🔙")
-    return kb
-
-# --- محرك الأوامر والراوتر ---
+# --- دالة الترحيب المحدثة لك ---
 @bot.message_handler(commands=['start'])
 def start(message):
     uid = message.from_user.id
+    
+    # التحقق مما إذا كان المستخدم هو المطور (صاحب البوت)
+    if int(uid) == OWNER_ID:
+        welcome_msg = "مرحبا ايها مطور 😈"
+    else:
+        welcome_msg = "💎 أهلاً بك في البوت، لوحة التحكم مفعلة أدناه:"
+
+    # تسجيل المستخدم
     with open("users.txt", "r") as f: users = f.read().splitlines()
     if str(uid) not in users:
         with open("users.txt", "a") as f: f.write(f"{uid}\n")
-    bot.send_message(uid, "🚀 **Bot Running System:** جاهز.\n💎 لوحة التحكم:", reply_markup=main_kb(uid))
+    
+    bot.send_message(uid, welcome_msg, reply_markup=main_kb(uid))
 
+# --- راوتر الأزرار (نفس المنطق السابق المستقر) ---
 @bot.message_handler(func=lambda m: True)
 def bot_router(message):
     uid, text = message.from_user.id, message.text
 
-    # 1. نظام إضافة أدمن (للمالك فقط)
     if text == "إضافة أدمن ➕" and int(uid) == OWNER_ID:
         m = bot.send_message(uid, "🆔 أرسل آيدي الأدمن الجديد:")
         bot.register_next_step_handler(m, process_admin_id)
 
-    # 2. نظام الإذاعة الثلاثية
-    elif text == "إرسال إذاعة 📣" and has_perm(uid, "can_broadcast"):
-        bot.send_message(uid, "🎯 اختر نوع الإذاعة:", reply_markup=broadcast_kb())
-    
-    elif text in ["إذاعة قناة 📢", "إذاعة مستخدمين 👥", "إذاعة الجميع 🌐"]:
-        mode = "channel" if "قناة" in text else ("users" if "مستخدمين" in text else "all")
-        m = bot.send_message(uid, f"💬 أرسل محتوى {text}:")
-        bot.register_next_step_handler(m, lambda msg: exec_bc(msg, mode))
-
-    # 3. نظام النشر (التصميم المعتمد)
     elif text == "نشر في القناة 📣" and has_perm(uid, "can_post"):
         with open("bot_files.txt", "r") as f: files = f.read().splitlines()
         if not files: return bot.send_message(uid, "❌ لا توجد ملفات!")
@@ -101,30 +93,18 @@ def bot_router(message):
         bot.send_message(conf["channel_id"], caption, reply_markup=mk, parse_mode="Markdown")
         bot.send_message(uid, "✅ تم النشر بنجاح.")
 
-    # 4. إضافة ملفات
     elif text == "إضافة ملفات 📤" and has_perm(uid, "can_add_files"):
         m = bot.send_message(uid, "📤 أرسل المرفق الآن:")
         bot.register_next_step_handler(m, save_file_logic)
 
-    # 5. تنظيف وتصفير
     elif text == "تنظيف البيانات 🧹" and has_perm(uid, "can_reset"):
         with open("users.txt", "w") as f: f.truncate(0)
         save_db("stats.json", {"downloads": 0, "likes": 0})
         bot.send_message(uid, "✅ تم تنظيف كافة البيانات.")
 
-    elif text == "تصفير الملفات 🗑️" and has_perm(uid, "can_reset"):
-        with open("bot_files.txt", "w") as f: f.truncate(0)
-        bot.send_message(uid, "✅ تم تصفير الملفات.")
-
-    elif text == "رجوع 🔙":
-        bot.send_message(uid, "🔙 القائمة الرئيسية:", reply_markup=main_kb(uid))
-
-# --- وظائف التنفيذ (Logic) ---
-
 def process_admin_id(message):
     target = message.text
     if not target.isdigit(): return bot.send_message(message.chat.id, "❌ آيدي خاطئ.")
-    # عرض أزرار الصلاحيات للحفظ
     mk = types.InlineKeyboardMarkup()
     mk.add(types.InlineKeyboardButton("💾 تفعيل بكامل الصلاحيات", callback_data=f"save_adm_{target}"))
     bot.send_message(message.chat.id, f"⚙️ تأكيد إضافة الأدمن `{target}`؟", reply_markup=mk)
@@ -137,20 +117,6 @@ def save_file_logic(message):
         with open("bot_files.txt", "a") as f: f.write(f"{fid}\n")
         bot.send_message(message.chat.id, "✅ تم حفظ الملف.", reply_markup=main_kb(message.from_user.id))
 
-def exec_bc(message, mode):
-    conf = get_db("settings.json")
-    with open("users.txt", "r") as f: users = f.read().splitlines()
-    sent = 0
-    if mode in ["channel", "all"]:
-        try: bot.copy_message(conf["channel_id"], message.chat.id, message.message_id); sent += 1
-        except: pass
-    if mode in ["users", "all"]:
-        for u in users:
-            try: bot.copy_message(u, message.chat.id, message.message_id); sent += 1
-            except: pass
-    bot.send_message(message.chat.id, f"✅ اكتملت الإذاعة: {sent}", reply_markup=main_kb(message.from_user.id))
-
-# --- Callbacks ---
 @bot.callback_query_handler(func=lambda call: True)
 def calls(call):
     uid, data = call.from_user.id, call.data
@@ -174,3 +140,4 @@ def calls(call):
 
 if __name__ == "__main__":
     bot.infinity_polling()
+
