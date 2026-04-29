@@ -15,27 +15,27 @@ BOT_USERNAME = "gudurjbot"
 
 bot = telebot.TeleBot(TOKEN)
 
-# التأكد من وجود ملفات النظام
-FILES = ["users.txt", "bot_files.txt", "activity.json", "subs.json", "admins.json"]
+# إنشاء الملفات الضرورية إذا لم تكن موجودة
+FILES = ["users.txt", "bot_files.txt", "activity.json", "subs.json", "admins.json", "settings.json"]
 for f in FILES:
     if not os.path.exists(f):
         with open(f, "w", encoding="utf-8") as file:
-            if f.endswith(".json"): json.dump([] if f in ["subs.json", "admins.json"] else {}, file)
+            if f == "settings.json": json.dump({"notifications": True}, file)
+            elif f.endswith(".json"): json.dump({} if "activity" in f else [], file)
             else: file.write("")
 
 # ==========================================
-# 2. دالات المساعدة
+# 2. دالات إدارة البيانات
 # ==========================================
 def load_json(filename):
     try:
         with open(filename, "r", encoding="utf-8") as f:
-            data = json.load(f)
-            return data
-    except: return [] if "json" in filename else {}
+            return json.load(f)
+    except: return {} if "activity" in filename else []
 
 def save_json(filename, data):
     with open(filename, "w", encoding="utf-8") as f:
-        json.dump(data, f, indent=4)
+        json.dump(data, f, indent=4, ensure_ascii=False)
 
 def get_list(filename):
     if not os.path.exists(filename): return []
@@ -46,25 +46,42 @@ def is_admin(user_id):
     admins = load_json("admins.json")
     return user_id == OWNER_ID or user_id in admins
 
-def is_subscribed(user_id):
-    subs = load_json("subs.json")
-    if not subs: return True
-    for ch in subs:
-        try:
-            status = bot.get_chat_member(ch, user_id).status
-            if status in ['left', 'kicked']: return False
-        except: continue 
-    return True
+def clean_old_activity():
+    """حذف التفاعلات القديمة والاحتفاظ بآخر 50 منشوراً فقط"""
+    act = load_json("activity.json")
+    if not act: return 0
+    
+    keys = list(act.keys())
+    before_count = len(keys)
+    
+    if before_count > 50:
+        # الاحتفاظ بآخر 50 منشور (الأحدث)
+        new_act = {k: act[k] for k in keys[-50:]}
+        save_json("activity.json", new_act)
+        return before_count - 50
+    return 0
 
 # ==========================================
-# 3. لوحة التحكم
+# 3. لوحات التحكم
 # ==========================================
 def get_panel(user_id):
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-    btns = ["نشر تلقائي 📣", "إضافة ملفات 📤", "إذاعة للمستخدمين 👥", "إذاعة للقناة 📢", "إدارة الاشتراك 📢", "الإحصائيات 📊"]
+    settings = load_json("settings.json")
+    
+    # تحديد شكل زر الإشعارات بناءً على الحالة الحالية
+    notif_btn = "إيقاف الإشعارات ❌" if settings.get("notifications", True) else "تفعيل الإشعارات ✅"
+    
+    btns = [
+        "نشر تلقائي 📣", "إضافة ملفات 📤", 
+        "إذاعة للمستخدمين 👥", "إذاعة للقناة 📢", 
+        "الإحصائيات 📊", notif_btn,
+        "تنظيف البيانات 🧹" # الزر الجديد
+    ]
+    
     if user_id == OWNER_ID:
         btns.append("إضافة أدمن ➕")
-    btns.extend(["نسخة احتياطية 📥", "تصفير الملفات 🗑️", "إنهاء ✅"])
+    
+    btns.extend(["تصفير الملفات 🗑️", "إنهاء ✅"])
     markup.add(*(types.KeyboardButton(b) for b in btns))
     return markup
 
@@ -75,186 +92,131 @@ def channel_markup(mid, interact_count=0):
         types.InlineKeyboardButton(f"استلم 📩", url=url),
         types.InlineKeyboardButton(f"تفاعل ❤️ ({interact_count})", callback_data=f"hit_{mid}")
     )
-    subs = load_json("subs.json")
-    for ch in subs:
-        markup.add(types.InlineKeyboardButton("اشترك هنا ✅", url=f"https://t.me/{ch.replace('@','')}"))
     return markup
 
 # ==========================================
-# 4. الأوامر الأساسية
+# 4. معالجة الرسائل والأوامر
 # ==========================================
-@bot.message_handler(commands=['start', 'admin'])
+@bot.message_handler(commands=['start'])
 def handle_start(message):
     uid = message.from_user.id
-    if str(uid) not in get_list("users.txt"):
-        with open("users.txt", "a") as f: f.write(str(uid) + "\n")
-
-    if message.text and "get_" in message.text:
-        if not is_subscribed(uid):
-            bot.send_message(uid, "⚠️ عذراً، يجب عليك الاشتراك في القنوات أولاً!")
-            return
+    settings = load_json("settings.json")
+    
+    # تسجيل المستخدم وإرسال إشعار الدخول
+    users_list = get_list("users.txt")
+    if str(uid) not in users_list:
+        with open("users.txt", "a") as f:
+            f.write(str(uid) + "\n")
         
-        mid = message.text.split("_")[1]
-        act = load_json("activity.json")
-        if not isinstance(act, dict): act = {}
-        
-        if mid in act:
-            if str(uid) not in act[mid].get("u_receive", []):
-                act[mid].setdefault("u_receive", []).append(str(uid))
-                save_json("activity.json", act)
-
-        bot.send_message(uid, "✅ جاري إرسال الملفات...")
-        files = get_list("bot_files.txt")
-        for f in files: 
-            try: bot.send_document(uid, f)
+        # إرسال إشعار للمالك إذا كانت الميزة مفعلة
+        if settings.get("notifications", True):
+            mention = f"[{message.from_user.first_name}](tg://user?id={uid})"
+            msg = f"👤 **دخول مستخدم جديد!**\n\n" \
+                  f"👤 الاسم: {mention}\n" \
+                  f"🆔 الآيدي: `{uid}`\n" \
+                  f"🔗 اليوزر: @{message.from_user.username if message.from_user.username else 'لا يوجد'}"
+            try: bot.send_message(OWNER_ID, msg, parse_mode="Markdown")
             except: pass
+
+    # معالجة استلام الملفات
+    if message.text and "get_" in message.text:
+        files = get_list("bot_files.txt")
+        if not files:
+            bot.send_message(uid, "❌ لا توجد ملفات حالياً.")
+        else:
+            bot.send_message(uid, "✅ تفضل، هذه جميع الملفات المتاحة:")
+            for f_id in files:
+                try: bot.send_document(uid, f_id)
+                except: pass
         return
 
     if is_admin(uid):
-        bot.send_message(uid, "👑 أهلاً بك في لوحة الإدارة:", reply_markup=get_panel(uid))
+        bot.send_message(uid, "👑 أهلاً بك في لوحة التحكم:", reply_markup=get_panel(uid))
     else:
-        bot.send_message(uid, "👋 أهلاً بك في البوت.")
+        bot.send_message(uid, "👋 أهلاً بك! تابع القناة للحصول على الملفات.")
 
-# ==========================================
-# 5. معالجة أزرار الإدارة
-# ==========================================
 @bot.message_handler(func=lambda m: is_admin(m.from_user.id))
-def admin_buttons(message):
+def handle_admin(message):
     uid, text = message.from_user.id, message.text
+    settings = load_json("settings.json")
 
     if text == "الإحصائيات 📊":
-        act = load_json("activity.json")
-        t_inter, t_recv = 0, 0
-        if isinstance(act, dict):
-            for m in act:
-                t_inter += len(act[m].get("u_interact", []))
-                t_recv += len(act[m].get("u_receive", []))
-        
-        msg = (f"📊 **الإحصائيات:**\n\n"
-               f"👥 المشتركين: `{len(get_list('users.txt'))}`\n"
-               f"📂 الملفات: `{len(get_list('bot_files.txt'))}`\n"
-               f"❤️ المتفاعلين: `{t_inter}`\n"
-               f"📩 المستلمين: `{t_recv}`")
-        bot.send_message(uid, msg, parse_mode="Markdown")
+        users = get_list("users.txt")
+        files = get_list("bot_files.txt")
+        bot.send_message(uid, f"📊 **إحصائيات البوت:**\n\n👥 المستخدمين: `{len(users)}`\n📂 الملفات: `{len(files)}`", parse_mode="Markdown")
 
-    elif text == "إدارة الاشتراك 📢":
-        subs = load_json("subs.json")
-        list_txt = "\n".join([f"{i+1}- {ch}" for i, ch in enumerate(subs)])
-        msg = f"📢 قنوات الاشتراك الحالية:\n\n{list_txt if subs else 'لا توجد'}\n\nأرسل المعرف للإضافة أو الرقم للحذف."
-        bot.send_message(uid, msg, reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add("إنهاء ✅"))
-        bot.register_next_step_handler(message, process_sub_update)
+    elif text == "تنظيف البيانات 🧹":
+        removed = clean_old_activity()
+        bot.send_message(uid, f"✅ تم تنظيف السجلات.\nتم حذف بيانات `{removed}` منشور قديم.\nالملف الآن يحتوي على أحدث 50 منشور فقط.")
 
-    elif text == "إذاعة للمستخدمين 👥":
-        msg = bot.send_message(uid, "👥 أرسل رسالة الإذاعة أو اضغط إلغاء:", reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add("إلغاء ❌"))
-        bot.register_next_step_handler(msg, lambda m: broadcast_logic(m, "users"))
+    elif text == "تفعيل الإشعارات ✅":
+        settings["notifications"] = True
+        save_json("settings.json", settings)
+        bot.send_message(uid, "🔔 تم تفعيل إشعارات دخول المستخدمين.", reply_markup=get_panel(uid))
 
-    elif text == "إذاعة للقناة 📢":
-        msg = bot.send_message(uid, "📢 أرسل ما تريد نشره بالقناة:", reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add("إلغاء ❌"))
-        bot.register_next_step_handler(msg, lambda m: broadcast_logic(m, "channel"))
+    elif text == "إيقاف الإشعارات ❌":
+        settings["notifications"] = False
+        save_json("settings.json", settings)
+        bot.send_message(uid, "🔕 تم إيقاف إشعارات الدخول.", reply_markup=get_panel(uid))
 
     elif text == "نشر تلقائي 📣":
         f_count = len(get_list("bot_files.txt"))
-        msg = bot.send_message(CHANNEL_ID, f"⚡ **تم تحديث الملفات!**\n📂 العدد: `{f_count}`\n⚠️ تفاعل ❤️ للاستلام.", parse_mode="Markdown")
-        bot.edit_message_reply_markup(CHANNEL_ID, msg.message_id, reply_markup=channel_markup(str(msg.message_id)))
-        bot.send_message(uid, "✅ تم النشر.")
+        msg = bot.send_message(CHANNEL_ID, f"⚡ **تحديث جديد للملفات!**\n📂 العدد: `{f_count}`\n\n⚠️ تفاعل ❤️ ثم اضغط استلم.", parse_mode="Markdown")
+        bot.edit_message_reply_markup(CHANNEL_ID, msg.message_id, reply_markup=channel_markup(msg.message_id))
+        bot.send_message(uid, "✅ تم النشر في القناة.")
 
     elif text == "إضافة ملفات 📤":
-        bot.send_message(uid, "📥 أرسل الملفات ثم اضغط **إنهاء ✅**", reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add("إنهاء ✅"))
+        bot.send_message(uid, "📤 أرسل الملفات الآن (صور، فيديو، ملفات)، ثم اضغط إنهاء ✅", 
+                         reply_markup=types.ReplyKeyboardMarkup(resize_keyboard=True).add("إنهاء ✅"))
         bot.register_next_step_handler(message, process_upload)
-
-    elif text == "إضافة أدمن ➕" and uid == OWNER_ID:
-        msg = bot.send_message(uid, "👤 أرسل (ID) الشخص الجديد:")
-        bot.register_next_step_handler(msg, save_admin)
-
-    elif text == "نسخة احتياطية 📥":
-        for f in FILES:
-            if os.path.exists(f):
-                with open(f, "rb") as doc: bot.send_document(uid, doc)
 
     elif text == "تصفير الملفات 🗑️":
         open("bot_files.txt", "w").close()
-        bot.send_message(uid, "🗑️ تم التصفير.")
+        bot.send_message(uid, "🗑️ تم حذف سجل الملفات بنجاح.")
 
     elif text == "إنهاء ✅":
-        bot.send_message(uid, "🛑 تم.", reply_markup=get_panel(uid))
+        bot.send_message(uid, "🛑 تم إغلاق القائمة.", reply_markup=get_panel(uid))
 
 # ==========================================
-# 6. دالات العمليات الفرعية
+# 5. وظائف إضافية (الرفع والتبادل)
 # ==========================================
-def process_sub_update(message):
-    uid = message.from_user.id
-    if message.text == "إنهاء ✅":
-        bot.send_message(uid, "✅ تم الحفظ.", reply_markup=get_panel(uid))
-        return
-    subs = load_json("subs.json")
-    if message.text.startswith("@"):
-        subs.append(message.text.strip())
-        save_json("subs.json", list(set(subs)))
-        bot.send_message(uid, "✅ تمت إضافة القناة.")
-    elif message.text.isdigit():
-        idx = int(message.text) - 1
-        if 0 <= idx < len(subs):
-            subs.pop(idx)
-            save_json("subs.json", subs)
-            bot.send_message(uid, "🗑️ تم الحذف.")
-    bot.register_next_step_handler(message, process_sub_update)
-
-def broadcast_logic(message, target):
-    uid = message.from_user.id
-    if message.text == "إلغاء ❌":
-        bot.send_message(uid, "🛑 تم الإلغاء.", reply_markup=get_panel(uid))
-        return
-    
-    if target == "channel":
-        bot.copy_message(CHANNEL_ID, message.chat.id, message.message_id)
-        bot.send_message(uid, "✅ تم النشر في القناة.")
-    else:
-        users = get_list("users.txt")
-        bot.send_message(uid, f"⏳ جاري الإرسال لـ {len(users)}...")
-        def run():
-            s = 0
-            for u in users:
-                try: bot.copy_message(u, message.chat.id, message.message_id); s += 1; time.sleep(0.05)
-                except: continue
-            bot.send_message(uid, f"✅ اكتملت الإذاعة لـ {s} مستخدم.")
-        threading.Thread(target=run).start()
-
 def process_upload(message):
     if message.text == "إنهاء ✅":
-        bot.send_message(message.from_user.id, "✅ تم الحفظ.", reply_markup=get_panel(message.from_user.id))
+        bot.send_message(message.chat.id, "✅ تم حفظ الملفات.", reply_markup=get_panel(message.from_user.id))
         return
-    fid = message.document.file_id if message.document else message.photo[-1].file_id if message.photo else None
-    if fid:
-        with open("bot_files.txt", "a") as f: f.write(fid + "\n")
-        bot.send_message(message.from_user.id, "📥 استلمت.")
+    
+    file_id = None
+    if message.document: file_id = message.document.file_id
+    elif message.photo: file_id = message.photo[-1].file_id
+    elif message.video: file_id = message.video.file_id
+    
+    if file_id:
+        with open("bot_files.txt", "a") as f: f.write(file_id + "\n")
+        bot.send_message(message.chat.id, "📥 تم الاستلام.. أرسل المزيد أو اضغط إنهاء.")
+    
     bot.register_next_step_handler(message, process_upload)
 
-def save_admin(message):
-    if message.text.isdigit():
-        admins = load_json("admins.json")
-        admins.append(int(message.text))
-        save_json("admins.json", list(set(admins)))
-        bot.send_message(OWNER_ID, "✅ تم إضافة الأدمن.")
-    bot.send_message(OWNER_ID, "العودة للوحة..", reply_markup=get_panel(OWNER_ID))
-
-# ==========================================
-# 7. التفاعل والتشغيل
-# ==========================================
 @bot.callback_query_handler(func=lambda call: True)
-def handle_calls(call):
+def handle_callbacks(call):
     uid = str(call.from_user.id)
     if call.data.startswith("hit_"):
         mid = call.data.split("_")[1]
         act = load_json("activity.json")
-        if not isinstance(act, dict): act = {}
-        if mid not in act: act[mid] = {"u_interact": [], "u_receive": []}
+        if mid not in act: act[mid] = {"u_interact": []}
+        
         if uid not in act[mid]["u_interact"]:
             act[mid]["u_interact"].append(uid)
             save_json("activity.json", act)
-            bot.answer_callback_query(call.id, "❤️ تم التفاعل!")
-            bot.edit_message_reply_markup(CHANNEL_ID, int(mid), reply_markup=channel_markup(mid, len(act[mid]["u_interact"])))
+            bot.answer_callback_query(call.id, "❤️ تم تسجيل تفاعلك!")
+            try:
+                bot.edit_message_reply_markup(call.message.chat.id, int(mid), 
+                                              reply_markup=channel_markup(mid, len(act[mid]["u_interact"])))
+            except: pass
+        else:
+            bot.answer_callback_query(call.id, "⚠️ لقد تفاعلت بالفعل!", show_alert=True)
 
 if __name__ == "__main__":
-    bot.remove_webhook()
-    print("🚀 البوت يعمل الآن بكفاءة 100%..")
-    bot.polling(none_stop=True)
+    clean_old_activity() # تنظيف تلقائي عند كل تشغيل
+    print("🚀 البوت يعمل الآن...")
+    bot.infinity_polling()
+
