@@ -1,8 +1,8 @@
 # =========================================================================
-# ⚡ Uchiha Dz - THE SUPREME MONSTER BOT (ULTRA LONG EDITION) ⚡
+# ⚡ Uchiha Dz - THE SUPREME MONSTER BOT (MASTER ARCHITECTURE) ⚡
 # 🛠️ Master Architect: SELVA ZOLDEK | 🆔 ID: 8611300267
-# 🔄 Version: 30.0.0 (FULL DETAILED SOURCE CODE)
-# 🛡️ Designed for Performance and GitHub Documentation
+# 🔄 Version: 50.0.0 (NON-COMPRESSED SOURCE)
+# 🛡️ Optimized for: GitHub, Termux, and High-Performance Deployment
 # =========================================================================
 
 import telebot
@@ -13,389 +13,342 @@ import time
 import sys
 import datetime
 
-# --- [ 1. CONFIGURATION SECTION ] ---
-# وضع الإعدادات في متغيرات واضحة لتسهيل التعديل
+# --- [ 1. الأساسيات والتعريفات ] ---
+
+# توكن البوت الخاص بك
 BOT_TOKEN = "8401184550:AAH0x8_WC-h3kxOn4RoP3ASTOm7n84TJteU"
+# معرفك الخاص كمطور (تملك التحكم الكامل)
 DEVELOPER_ID = 8611300267 
+# القناة التي يتم النشر فيها
 OFFICIAL_CHANNEL = "@Uchiha75"  
 
-# إنشاء كائن البوت مع إعدادات الخيوط المتعددة للسرعة
+# إنشاء كائن البوت مع دعم تعدد الخيوط لضمان عدم التهنيج
 bot = telebot.TeleBot(BOT_TOKEN, threaded=True, num_threads=100)
 
-# ذاكرة الجلسة (Session Storage) لإدارة العمليات المعقدة
-# نستخدم هذا الهيكل لتجنب تداخل البيانات بين المستخدمين
-GLOBAL_SESSIONS = {
-    "upload_buffer": {},    # لتخزين الملفات قبل التأكيد
-    "broadcast_msg": {},    # لتخزين محتوى الإذاعة
-    "admin_status": None,    # لتتبع حالة الأدمن الحالية
-    "temp_sub_data": {}     # لتخزين بيانات القنوات الجديدة مؤقتاً
+# ذاكرة تخزين الجلسات الحية (Runtime Sessions)
+# نستخدمها لإدارة العمليات التي تتطلب خطوات متعددة مثل الرفع والإذاعة
+LIVE_SESSIONS = {
+    "upload_buffer": {},     # تخزين الملفات قبل حفظها نهائياً
+    "admin_request": {},     # انتظار إرسال ID الأدمن الجديد
+    "sub_request": {},       # انتظار إرسال بيانات قناة الاشتراك
+    "broadcast_content": {},  # محتوى الإذاعة الجارية
+    "broadcast_mode": None    # نوع الإذاعة (مستخدمين/قناة/الكل)
 }
 
-# --- [ 2. DATABASE MANAGEMENT SYSTEM ] ---
+# --- [ 2. محرك إدارة البيانات الشامل ] ---
 
-def load_database_file(file_path, default_structure):
-    """دالة لقراءة البيانات من ملفات JSON بذكاء"""
+def get_data(file_name, default_value):
+    """دالة قراءة البيانات: تضمن استرجاع البيانات حتى لو الملف غير موجود"""
+    file_path = f"{file_name}"
     if not os.path.exists(file_path):
         with open(file_path, "w", encoding="utf-8") as f:
-            json.dump(default_structure, f, indent=4, ensure_ascii=False)
-        return default_structure
+            json.dump(default_value, f, indent=4, ensure_ascii=False)
+        return default_value
     try:
         with open(file_path, "r", encoding="utf-8") as f:
             return json.load(f)
     except Exception as e:
-        print(f"Error loading {file_path}: {e}")
-        return default_structure
+        print(f"Error reading {file_name}: {e}")
+        return default_value
 
-def save_database_file(file_path, data_to_save):
-    """دالة لحفظ البيانات وضمان عدم ضياعها"""
+def set_data(file_name, data_to_save):
+    """دالة حفظ البيانات: تضمن تخزين التغييرات فوراً بشكل آمن"""
+    file_path = f"{file_name}"
     try:
         with open(file_path, "w", encoding="utf-8") as f:
             json.dump(data_to_save, f, indent=4, ensure_ascii=False)
         return True
     except Exception as e:
-        print(f"Error saving {file_path}: {e}")
+        print(f"Error saving {file_name}: {e}")
         return False
 
-# تهيئة الملفات الأساسية عند إقلاع البوت
-def initialize_system_files():
-    """التأكد من وجود كل ملفات البيانات اللازمة قبل التشغيل"""
-    # ملف الإحصائيات والعدادات
-    load_database_file("stats.json", {"likes": 0, "receives": 0, "interacted": [], "received": []})
-    # ملف تخزين معرفات الملفات
-    load_database_file("bot_files.json", [])
-    # ملف القنوات للاشتراك الإجباري
-    load_database_file("subs.json", [])
-    # ملف قائمة الأدمنية (المطور أولهم)
-    load_database_file("admins.json", [DEVELOPER_ID])
-    # ملف نصي لتخزين معرفات كل من استخدم البوت
+# تهيئة ملفات النظام لضمان عمل البوت بدون أخطاء "الملف غير موجود"
+def initialize_database():
+    """تجهيز ملفات JSON والقوائم عند تشغيل البوت لأول مرة"""
+    get_data("stats.json", {"likes": 0, "receives": 0, "interacted": [], "received": []})
+    get_data("bot_files.json", [])
+    get_data("subs.json", [])
+    get_data("admins.json", [DEVELOPER_ID]) # المطور هو الأدمن الأول دائماً
     if not os.path.exists("users.txt"):
-        with open("users.txt", "w") as f:
-            f.close()
+        with open("users.txt", "w") as f: f.close()
 
-# تنفيذ التهيئة
-initialize_system_files()
+initialize_database()
 
-# --- [ 3. DYNAMIC KEYBOARD GENERATORS ] ---
+# --- [ 3. منشئ الواجهات والأزرار (GUI Builder) ] ---
 
-def generate_channel_markup():
-    """إنشاء أزرار القناة مع العدادات الحية"""
-    # قراءة أحدث الإحصائيات
-    stats_data = load_database_file("stats.json", {})
-    like_count = stats_data.get("likes", 0)
-    receive_count = stats_data.get("receives", 0)
+def build_channel_markup():
+    """توليد أزرار القناة مع العدادات التي تمنع التكرار وتحدث نفسها"""
+    stats = get_data("stats.json", {})
+    likes = stats.get("likes", 0)
+    gets = stats.get("receives", 0)
     
     markup = types.InlineKeyboardMarkup()
-    # زر التفاعل: يبقى في القناة ويزيد العداد
-    like_btn = types.InlineKeyboardButton(f"تفاعل ❤️ ({like_count})", callback_data="ACTION_LIKE")
-    # زر الاستلام: ينقل المستخدم للبوت مع بارامتر خاص للتحقق
-    bot_username = bot.get_me().username
-    get_btn = types.InlineKeyboardButton(f"استلم 📩 ({receive_count})", url=f"https://t.me/{bot_username}?start=verify_and_get")
+    # زر التفاعل: يسجل ID المستخدم ويمنع تكراره
+    btn_like = types.InlineKeyboardButton(f"تفاعل ❤️ ({likes})", callback_data="OP_LIKE")
+    # زر الاستلام: رابط ذكي ينقل المستخدم للبوت للتحقق
+    btn_get = types.InlineKeyboardButton(f"استلم 📩 ({gets})", url=f"https://t.me/{bot.get_me().username}?start=verify_access")
     
-    markup.row(like_btn, get_btn)
+    markup.row(btn_like, btn_get)
     return markup
 
-def generate_admin_reply_keyboard():
-    """إنشاء لوحة تحكم الأدمن الكبيرة والمفصلة"""
+def build_admin_keyboard(uid):
+    """توليد لوحة تحكم الأدمن بناءً على مستوى الصلاحية (مطور أو أدمن)"""
     markup = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
     
-    # الصف الأول: العمليات الأساسية
-    btn_upload = types.KeyboardButton("إضافة ملفات 📤")
-    btn_publish = types.KeyboardButton("نشر في القناة 📣")
+    # الصلاحيات الممنوحة لكل من الأدمن والمطور
+    markup.row("إضافة ملفات 📤", "نشر في القناة 📣")
+    markup.row("إذاعة متطورة 📡", "الإحصائيات 📊")
     
-    # الصف الثاني: التواصل والإحصاء
-    btn_bc = types.KeyboardButton("إذاعة متطورة 📡")
-    btn_stats = types.KeyboardButton("الإحصائيات 📊")
+    # الصلاحيات المحصورة بالمطور فقط (أنت SELVA ZOLDEK)
+    if uid == DEVELOPER_ID:
+        markup.row("تصفير ملفات 🗑️", "تنظيف بيانات 🧹")
+        markup.row("إدارة الاشتراك 🔗", "صلاحيات أدمن ⚙️")
     
-    # الصف الثالث: التنظيف والإدارة
-    btn_reset_f = types.KeyboardButton("تصفير ملفات 🗑️")
-    btn_clean_d = types.KeyboardButton("تنظيف بيانات 🧹")
-    
-    # الصف الرابع: الإعدادات والعودة
-    btn_subs = types.KeyboardButton("إدارة الاشتراك 🔗")
-    btn_admins = types.KeyboardButton("صلاحيات أدمن ⚙️")
-    btn_back = types.KeyboardButton("🔙 العودة")
-    
-    markup.add(btn_upload, btn_publish, btn_bc, btn_stats, btn_reset_f, btn_clean_d, btn_subs, btn_admins, btn_back)
+    markup.row("🔙 العودة")
     return markup
 
-def generate_main_reply_keyboard(user_id):
-    """الكيبورد الذي يظهر للمستخدم العادي أو المطور عند البداية"""
+def build_main_keyboard(uid):
+    """الكيبورد الافتراضي الذي يظهر عند كتابة /start"""
     markup = types.ReplyKeyboardMarkup(row_width=1, resize_keyboard=True)
-    admin_list = load_database_file("admins.json", [DEVELOPER_ID])
+    admins = get_data("admins.json", [DEVELOPER_ID])
     
-    if user_id == DEVELOPER_ID or user_id in admin_list:
+    if uid == DEVELOPER_ID or uid in admins:
         markup.add(types.KeyboardButton("لوحة تحكم الأدمن 🛠️"))
     else:
         markup.add(types.KeyboardButton("استلام الملفات 📥"))
     return markup
 
-# --- [ 4. CORE HANDLERS: START & VERIFICATION ] ---
+# --- [ 4. المنطق الرئيسي: الاستلام والتحقق ] ---
 
 @bot.message_handler(commands=['start'])
-def handle_start_command(message):
-    """معالجة أمر البداية والتحقق من التفاعل"""
-    user_id = message.from_user.id
-    user_name = message.from_user.first_name
+def start_logic(message):
+    uid = message.from_user.id
+    first_name = message.from_user.first_name
     
-    # تسجيل المستخدم في القائمة الشاملة (users.txt)
+    # تسجيل المستخدم في قاعدة البيانات العامة
     with open("users.txt", "a+") as f:
         f.seek(0)
-        content = f.read()
-        if str(user_id) not in content:
-            f.write(f"{user_id}\n")
-    
-    # التحقق إذا كان المستخدم ضغط "استلام" من القناة
-    if "verify_and_get" in message.text:
-        stats_data = load_database_file("stats.json", {})
-        interacted_list = stats_data.get("interacted", [])
+        if str(uid) not in f.read():
+            f.write(f"{uid}\n")
+
+    # معالجة طلب الاستلام القادم من القناة
+    if "verify_access" in message.text:
+        stats = get_data("stats.json", {})
+        interacted_users = stats.get("interacted", [])
         
-        # شرط التفاعل الصارم: يجب أن يكون ID المستخدم في قائمة من ضغطوا ❤️
-        if user_id in interacted_list:
-            received_list = stats_data.get("received", [])
+        # الفحص الصارم: هل ضغط المستخدم على زر التفاعل في القناة؟
+        if uid in interacted_users:
+            received_users = stats.get("received", [])
             
-            # إذا كان أول استلام له، نزيد العداد
-            if user_id not in received_list:
-                stats_data["receives"] += 1
-                stats_data.setdefault("received", []).append(user_id)
-                save_database_file("stats.json", stats_data)
+            # تحديث عداد الاستلام إذا كانت هذه المرة الأولى
+            if uid not in received_users:
+                stats["receives"] += 1
+                stats.setdefault("received", []).append(uid)
+                set_data("stats.json", stats)
+                # ملاحظة: سيتم تحديث العداد في القناة عند النشر القادم
             
-            bot.send_message(user_id, f"✅ أهلاً {user_name}! تم التحقق من تفاعلك بنجاح.")
+            bot.send_message(uid, f"✅ أهلاً {first_name}! لقد تم التحقق من تفاعلك بنجاح. جاري إرسال الملفات...")
             
-            # جلب الملفات من قاعدة البيانات وإرسالها
-            all_files = load_database_file("bot_files.json", [])
-            if not all_files:
-                bot.send_message(user_id, "📂 قاعدة الملفات فارغة حالياً، انتظر النشر القادم.")
+            files_db = get_data("bot_files.json", [])
+            if not files_db:
+                bot.send_message(uid, "📂 عذراً، لا توجد ملفات مرفوعة في قاعدة البيانات حالياً.")
             else:
-                for file_item in all_files:
+                for file_entry in files_db:
                     try:
-                        bot.send_document(user_id, file_item['file_id'], caption=file_item['caption'])
-                    except Exception as send_err:
-                        print(f"Error sending file: {send_err}")
+                        bot.send_document(uid, file_entry['id'], caption=file_entry['cap'])
+                    except Exception as e:
+                        print(f"Failed to send file: {e}")
         else:
-            # رسالة الرفض إذا لم يتفاعل
-            fail_msg = (f"⚠️ عذراً {user_name}!\n\n"
-                        f"لقد ضغطت على زر الاستلام دون أن تضغط على (تفاعل ❤️) في القناة.\n\n"
-                        f"فضلاً عد للقناة {OFFICIAL_CHANNEL} وتفاعل أولاً ثم حاول مجدداً.")
-            bot.send_message(user_id, fail_msg)
+            # رسالة في حالة عدم التفاعل
+            bot.send_message(uid, f"⚠️ عذراً يا {first_name}، لن تستطيع الاستلام بدون تفاعل!\n\nعد للقناة {OFFICIAL_CHANNEL} واضغط على زر (تفاعل ❤️) أولاً.")
         return
 
-    # الترحيب العادي حسب الرتبة
-    if user_id == DEVELOPER_ID:
-        dev_welcome = (f"مرحبا ايها مطور 😈SELVA ZOLDEK 😈\n\n"
-                       f"تم تشغيل نظام 'الوحش' بنجاح.\n"
-                       f"الوقت الحالي: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}")
-        bot.send_message(user_id, dev_welcome, reply_markup=generate_main_reply_keyboard(user_id))
+    # رسالة الترحيب العادية
+    if uid == DEVELOPER_ID:
+        bot.send_message(uid, "مرحبا ايها مطور 😈SELVA ZOLDEK 😈\nأنت الآن في وضع التحكم المطلق.", reply_markup=build_main_keyboard(uid))
     else:
-        user_welcome = "أهلاً بك في نظام Uchiha Dz ⚡\nاستخدم القائمة أدناه للبدء."
-        bot.send_message(user_id, user_welcome, reply_markup=generate_main_reply_keyboard(user_id))
+        bot.send_message(uid, "أهلاً بك في نظام Uchiha Dz ⚡\nالبوت جاهز لتسليمك الملفات بعد التفاعل في القناة.", reply_markup=build_main_keyboard(uid))
 
-# --- [ 5. CALLBACK QUERY HANDLER: INTERACTIONS & DELETIONS ] ---
+# --- [ 5. معالجة العمليات التفاعلية (Callbacks) ] ---
 
 @bot.callback_query_handler(func=lambda call: True)
-def handle_inline_callbacks(call):
-    """معالجة جميع ضغطات الأزرار الشفافة (Inline Buttons)"""
-    user_id = call.from_user.id
-    message_id = call.message.message_id
-    chat_id = call.message.chat.id
-    callback_data = call.data
+def callback_router(call):
+    uid = call.from_user.id
+    mid = call.message.message_id
+    cid = call.message.chat.id
+    data = call.data
     
-    # 1. منطق عداد التفاعل (❤️)
-    if callback_data == "ACTION_LIKE":
-        stats_data = load_database_file("stats.json", {})
-        interacted_list = stats_data.get("interacted", [])
-        
-        # منع التكرار: لا يمكن للمستخدم التفاعل أكثر من مرة لزيادة العداد
-        if user_id not in interacted_list:
-            stats_data["likes"] += 1
-            stats_data.setdefault("interacted", []).append(user_id)
-            save_database_file("stats.json", stats_data)
-            
-            # تحديث نص الأزرار في القناة فوراً لإظهار الرقم الجديد
-            bot.edit_message_reply_markup(chat_id, message_id, reply_markup=generate_channel_markup())
-            bot.answer_callback_query(call.id, "تم احتساب تفاعلك! ❤️ يمكنك الآن الاستلام من الزر الآخر.", show_alert=True)
+    stats = get_data("stats.json", {})
+    admins = get_data("admins.json", [DEVELOPER_ID])
+
+    # 1. منطق عداد التفاعل في القناة
+    if data == "OP_LIKE":
+        interacted = stats.get("interacted", [])
+        if uid not in interacted:
+            stats["likes"] += 1
+            stats.setdefault("interacted", []).append(uid)
+            set_data("stats.json", stats)
+            # تحديث الأزرار فوراً في القناة
+            bot.edit_message_reply_markup(cid, mid, reply_markup=build_channel_markup())
+            bot.answer_callback_query(call.id, "شكراً لتفاعلك! ❤️ يمكنك الآن التوجه للبوت لاستلام ملفاتك.", show_alert=True)
         else:
-            bot.answer_callback_query(call.id, "أنت متفاعل بالفعل يا وحش! 😈", show_alert=True)
+            bot.answer_callback_query(call.id, "لقد قمت بالتفاعل مسبقاً يا وحش! 😈", show_alert=True)
 
-    # 2. منطق حذف قنوات الاشتراك الإجباري (طلبك الأساسي)
-    elif callback_data.startswith("REMOVE_SUB_"):
-        index_to_remove = int(callback_data.split("_")[2])
-        subs_list = load_database_file("subs.json", [])
-        
-        if index_to_remove < len(subs_list):
-            removed_item = subs_list.pop(index_to_remove)
-            save_database_file("subs.json", subs_list)
-            bot.answer_callback_query(call.id, f"✅ تم حذف قناة: {removed_item['title']}")
-            # مسح الرسالة لتنظيف الواجهة
-            bot.delete_message(chat_id, message_id)
+    # 2. إدارة الأدمنية (للمطور فقط)
+    elif uid == DEVELOPER_ID:
+        if data == "ADD_ADMIN_REQ":
+            prompt = bot.send_message(uid, "🆔 من فضلك أرسل الـ ID الخاص بالأدمن الجديد:")
+            bot.register_next_step_handler(prompt, process_add_admin)
+            
+        elif data.startswith("REM_ADM_"):
+            target_id = int(data.split("_")[2])
+            if target_id in admins:
+                admins.remove(target_id)
+                set_data("admins.json", admins)
+                bot.answer_callback_query(call.id, "✅ تم سحب الصلاحيات بنجاح.")
+                bot.delete_message(uid, mid)
 
-    # 3. أنواع الإذاعة
-    elif callback_data.startswith("START_BC_"):
-        GLOBAL_SESSIONS["broadcast_mode"] = callback_data
-        prompt = bot.send_message(user_id, "📤 أرسل الآن محتوى الإذاعة (نص، صورة، فيديو، أو توجيه):")
-        bot.register_next_step_handler(prompt, execute_broadcast_process)
+        # 3. حذف قنوات الاشتراك الإجباري
+        elif data.startswith("REM_SUB_"):
+            sub_idx = int(data.split("_")[2])
+            subs = get_data("subs.json", [])
+            if sub_idx < len(subs):
+                removed = subs.pop(sub_idx)
+                set_data("subs.json", subs)
+                bot.answer_callback_query(call.id, f"🗑️ تم حذف: {removed['title']}")
+                bot.delete_message(uid, mid)
 
-# --- [ 6. ADMIN SYSTEM: CONTROL PANEL FUNCTIONS ] ---
+# --- [ 6. الموجه الإداري والصلاحيات ] ---
 
 @bot.message_handler(func=lambda m: True)
-def handle_admin_commands(message):
-    """الموجه الرئيسي لكل أوامر لوحة التحكم"""
-    user_id = message.from_user.id
-    text_input = message.text
-    admin_list = load_database_file("admins.json", [DEVELOPER_ID])
+def admin_router(message):
+    uid = message.from_user.id
+    txt = message.text
+    admins = get_data("admins.json", [DEVELOPER_ID])
     
-    # حماية: الأدمن والمطور فقط من يمكنهم الوصول
-    if user_id != DEVELOPER_ID and user_id not in admin_list:
+    # منع غير المصرح لهم من إكمال الكود
+    if uid not in admins and uid != DEVELOPER_ID:
         return
 
-    # --- معالجة الأزرار ---
-    if text_input == "لوحة تحكم الأدمن 🛠️":
-        bot.send_message(user_id, "🛠️ أهلاً بك في غرفة التحكم بالوحش:", reply_markup=generate_admin_reply_keyboard())
+    # --- القسم الأول: أوامر الأدمن والمطور ---
+    if txt == "لوحة تحكم الأدمن 🛠️":
+        bot.send_message(uid, "🛠️ مرحباً بك في لوحة الإدارة الذكية:", reply_markup=build_admin_keyboard(uid))
 
-    elif text_input == "🔙 العودة":
-        bot.send_message(user_id, "تمت العودة للقائمة السابقة.", reply_markup=generate_main_reply_keyboard(user_id))
+    elif txt == "نشر في القناة 📣":
+        publish_text = "┏━━━━━━━ ⚡ ━━━━━━━┓\n   🔥 **تحديث جديد من Uchiha Dz** 🔥\n┗━━━━━━━ ⚡ ━━━━━━━┛\n\nتفاعل للاستلام 👇"
+        bot.send_message(OFFICIAL_CHANNEL, publish_text, reply_markup=build_channel_markup())
+        bot.send_message(uid, "✅ تم النشر في القناة بنجاح.")
 
-    elif text_input == "نشر في القناة 📣":
-        # تصميم رسالة النشر الفخمة
-        publish_text = (f"┏━━━━━━━ ⚡ ━━━━━━━┓\n"
-                        f"   🔥 **تحديث جديد من Uchiha Dz** 🔥\n"
-                        f"┗━━━━━━━ ⚡ ━━━━━━━┛\n\n"
-                        f"📢 تم رفع ملفات جديدة في القاعدة!\n\n"
-                        f"⚠️ **ملاحظة:** لن تستطيع الاستلام إلا إذا تفاعلت مع هذا المنشور أولاً.\n\n"
-                        f"👇 اضغط على الأزرار أدناه للاستلام:")
-        bot.send_message(OFFICIAL_CHANNEL, publish_text, reply_markup=generate_channel_markup())
-        bot.send_message(user_id, "✅ تم النشر بنجاح مع تفعيل العدادات الذكية.")
+    elif txt == "إضافة ملفات 📤":
+        LIVE_SESSIONS["upload_buffer"][uid] = []
+        up_kb = types.ReplyKeyboardMarkup(resize_keyboard=True).row("✅ إنهاء وحفظ", "❌ إلغاء")
+        bot.send_message(uid, "📤 أرسل الملفات (Document) الآن، ثم اضغط إنهاء وحفظ.", reply_markup=up_kb)
+        bot.register_next_step_handler(message, multi_upload_engine)
 
-    elif text_input == "الإحصائيات 📊":
-        stats_data = load_database_file("stats.json", {})
+    elif txt == "الإحصائيات 📊":
+        stats = get_data("stats.json", {})
         with open("users.txt", "r") as f:
-            total_users = len(f.readlines())
-        
-        report = (f"📊 **تقرير نظام Uchiha Dz:**\n\n"
-                  f"👤 عدد أعضاء البوت: `{total_users}`\n"
-                  f"❤️ إجمالي التفاعلات: `{stats_data['likes']}`\n"
-                  f"📩 إجمالي الاستلامات: `{stats_data['receives']}`\n"
-                  f"📂 عدد الملفات المرفوعة: `{len(load_database_file('bot_files.json', []))}`")
-        bot.send_message(user_id, report, parse_mode="Markdown")
+            total_u = len(f.readlines())
+        report = (f"📊 **إحصائيات نظام الوحش:**\n\n"
+                  f"👥 المستخدمين: `{total_u}`\n"
+                  f"❤️ التفاعلات: `{stats['likes']}`\n"
+                  f"📩 الاستلامات: `{stats['receives']}`\n"
+                  f"📂 الملفات: `{len(get_data('bot_files.json', []))}`")
+        bot.send_message(uid, report, parse_mode="Markdown")
 
-    elif text_input == "إضافة ملفات 📤":
-        # تهيئة ذاكرة الرفع لهذا الأدمن
-        GLOBAL_SESSIONS["upload_buffer"][user_id] = []
-        upload_kb = types.ReplyKeyboardMarkup(resize_keyboard=True).row("✅ إنهاء وحفظ", "❌ إلغاء العملية")
-        bot.send_message(user_id, "📂 أرسل الملفات الآن (Documents).\nيمكنك إرسال ملفات متعددة، وعند الانتهاء اضغط حفظ.", reply_markup=upload_kb)
-        bot.register_next_step_handler(message, process_multi_file_upload)
+    elif txt == "إذاعة متطورة 📡":
+        bc_kb = types.InlineKeyboardMarkup().row(
+            types.InlineKeyboardButton("👥 للمستخدمين", callback_data="BC_USERS"),
+            types.InlineKeyboardButton("🌍 للجميع", callback_data="BC_ALL")
+        )
+        bot.send_message(uid, "اختر نوع الإذاعة:", reply_markup=bc_kb)
 
-    elif text_input == "إدارة الاشتراك 🔗":
-        subs_list = load_database_file("subs.json", [])
-        markup = types.InlineKeyboardMarkup(row_width=1)
-        for i, channel in enumerate(subs_list):
-            markup.add(types.InlineKeyboardButton(f"🗑️ حذف: {channel['title']}", callback_data=f"REMOVE_SUB_{i}"))
-        markup.add(types.InlineKeyboardButton("➕ إضافة قناة جديدة", callback_data="TRIGGER_ADD_SUB"))
-        bot.send_message(user_id, "🔗 قائمة الاشتراك الإجباري الحالية:\nيمكنك حذف أي قناة بالضغط على زر الحذف بجانبها.", reply_markup=markup)
+    # --- القسم الثاني: أوامر المطور فقط (SELVA ZOLDEK) ---
+    if uid == DEVELOPER_ID:
+        if txt == "صلاحيات أدمن ⚙️":
+            current_admins = get_data("admins.json", [DEVELOPER_ID])
+            adm_kb = types.InlineKeyboardMarkup(row_width=1)
+            for adm in current_admins:
+                if adm != DEVELOPER_ID:
+                    adm_kb.add(types.InlineKeyboardButton(f"🗑️ سحب صلاحية من: {adm}", callback_data=f"REM_ADM_{adm}"))
+            adm_kb.add(types.InlineKeyboardButton("➕ إضافة أدمن جديد", callback_data="ADD_ADMIN_REQ"))
+            bot.send_message(uid, "⚙️ إدارة طاقم الإشراف:", reply_markup=adm_kb)
 
-    elif text_input == "إذاعة متطورة 📡":
-        markup = types.InlineKeyboardMarkup()
-        markup.row(types.InlineKeyboardButton("👥 مستخدمين البوت", callback_data="START_BC_USERS"),
-                   types.InlineKeyboardButton("📢 القناة الرسمية", callback_data="START_BC_CHANNEL"))
-        markup.add(types.InlineKeyboardButton("🌍 إذاعة شاملة (الكل)", callback_data="START_BC_ALL"))
-        bot.send_message(user_id, "اختر الفئة المستهدفة للإذاعة:", reply_markup=markup)
+        elif txt == "تنظيف بيانات 🧹":
+            # تصفير العدادات
+            set_data("stats.json", {"likes": 0, "receives": 0, "interacted": [], "received": []})
+            bot.send_message(uid, "🧹 تم تصفير جميع إحصائيات التفاعل والاستلام.")
 
-    elif text_input == "تنظيف بيانات 🧹":
-        # تصفير العدادات فقط دون مسح الملفات
-        reset_stats = {"likes": 0, "receives": 0, "interacted": [], "received": []}
-        save_database_file("stats.json", reset_stats)
-        bot.send_message(user_id, "🧹 تم تنظيف الإحصائيات وتصفير العدادات بنجاح.")
+        elif txt == "تصفير ملفات 🗑️":
+            set_data("bot_files.json", [])
+            bot.send_message(uid, "🗑️ تم حذف جميع الملفات من قاعدة البيانات.")
 
-    elif text_input == "تصفير ملفات 🗑️":
-        # مسح قاعدة الملفات تماماً
-        save_database_file("bot_files.json", [])
-        bot.send_message(user_id, "🗑️ تم مسح جميع الملفات من قاعدة بيانات البوت.")
+        elif txt == "إدارة الاشتراك 🔗":
+            subs = get_data("subs.json", [])
+            sub_kb = types.InlineKeyboardMarkup(row_width=1)
+            for i, s in enumerate(subs):
+                sub_kb.add(types.InlineKeyboardButton(f"🗑️ حذف: {s['title']}", callback_data=f"REM_SUB_{i}"))
+            bot.send_message(uid, "🔗 إدارة الاشتراك الإجباري:", reply_markup=sub_kb)
 
-# --- [ 7. ADVANCED SUB-LOGIC: UPLOAD & BROADCAST ENGINES ] ---
+    if txt == "🔙 العودة":
+        bot.send_message(uid, "تمت العودة للقائمة الرئيسية.", reply_markup=build_main_keyboard(uid))
 
-def process_multi_file_upload(message):
-    """محرك الرفع المتعدد الذي ينتظر أمر الحفظ النهائي"""
-    user_id = message.from_user.id
-    
-    if message.text == "✅ إنهاء وحفظ":
-        buffer = GLOBAL_SESSIONS["upload_buffer"].get(user_id, [])
-        if buffer:
-            main_files_db = load_database_file("bot_files.json", [])
-            main_files_db.extend(buffer)
-            save_database_file("bot_files.json", main_files_db)
-            bot.send_message(user_id, f"✅ نجاح! تم حفظ {len(buffer)} ملفات في القاعدة.", reply_markup=generate_admin_reply_keyboard())
-            GLOBAL_SESSIONS["upload_buffer"].pop(user_id)
+# --- [ 7. الأنظمة الفرعية: الرفع والإضافة ] ---
+
+def process_add_admin(message):
+    """حفظ ID الأدمن الجديد في قاعدة البيانات"""
+    try:
+        new_id = int(message.text)
+        admins = get_data("admins.json", [DEVELOPER_ID])
+        if new_id not in admins:
+            admins.append(new_id)
+            set_data("admins.json", admins)
+            bot.send_message(message.chat.id, f"✅ تم تعيين {new_id} كأدمن بنجاح.")
         else:
-            bot.send_message(user_id, "❌ لم تقم برفع أي ملفات لحفظها.", reply_markup=generate_admin_reply_keyboard())
+            bot.send_message(message.chat.id, "⚠️ هذا المستخدم موجود بالفعل في قائمة الأدمن.")
+    except:
+        bot.send_message(message.chat.id, "❌ خطأ: يرجى إرسال الـ ID بشكل صحيح (أرقام فقط).")
+
+def multi_upload_engine(message):
+    """محرك الرفع المتعدد الذي يجمع الملفات قبل الحفظ"""
+    uid = message.from_user.id
+    if message.text == "✅ إنهاء وحفظ":
+        buffer = LIVE_SESSIONS["upload_buffer"].get(uid, [])
+        if buffer:
+            db_files = get_data("bot_files.json", [])
+            db_files.extend(buffer)
+            set_data("bot_files.json", db_files)
+            bot.send_message(uid, f"✅ تم حفظ {len(buffer)} ملفات في قاعدة البيانات!", reply_markup=build_admin_keyboard(uid))
+            LIVE_SESSIONS["upload_buffer"].pop(uid)
+        else:
+            bot.send_message(uid, "❌ لم يتم إرسال أي ملفات لحفظها.", reply_markup=build_admin_keyboard(uid))
         return
-    
-    elif message.text == "❌ إلغاء العملية":
-        GLOBAL_SESSIONS["upload_buffer"].pop(user_id, None)
-        bot.send_message(user_id, "🗑️ تم إلغاء عملية الرفع ومسح الذاكرة المؤقتة.", reply_markup=generate_admin_reply_keyboard())
+    elif message.text == "❌ إلغاء":
+        LIVE_SESSIONS["upload_buffer"].pop(uid, None)
+        bot.send_message(uid, "🗑️ تم إلغاء العملية ومسح الذاكرة المؤقتة.", reply_markup=build_admin_keyboard(uid))
         return
 
-    # استلام الملفات وتخزينها في الـ Buffer
     if message.document:
-        file_info = {
-            "file_id": message.document.file_id,
-            "caption": message.caption if message.caption else ""
-        }
-        GLOBAL_SESSIONS["upload_buffer"][user_id].append(file_info)
-        count = len(GLOBAL_SESSIONS["upload_buffer"][user_id])
-        bot.send_message(user_id, f"📥 تم استلام الملف رقم ({count}). أرسل المزيد أو اضغط حفظ.")
-        bot.register_next_step_handler(message, process_multi_file_upload)
+        LIVE_SESSIONS["upload_buffer"][uid].append({"id": message.document.file_id, "cap": message.caption or ""})
+        count = len(LIVE_SESSIONS["upload_buffer"][uid])
+        bot.send_message(uid, f"📥 استلمت الملف رقم ({count}). تابع الإرسال أو اضغط حفظ.")
+        bot.register_next_step_handler(message, multi_upload_engine)
     else:
-        bot.send_message(user_id, "⚠️ فضلاً أرسل (ملف/Document) فقط، أو اضغط حفظ.")
-        bot.register_next_step_handler(message, process_multi_file_upload)
+        bot.send_message(uid, "⚠️ فضلاً أرسل ملفاً (Document) فقط.")
+        bot.register_next_step_handler(message, multi_upload_engine)
 
-def execute_broadcast_process(message):
-    """تنفيذ عملية الإذاعة بدقة لجميع المستخدمين"""
-    mode = GLOBAL_SESSIONS.get("broadcast_mode")
-    bot.send_message(message.chat.id, "🚀 جاري معالجة الإذاعة وإرسالها للجميع... انتظر قليلاً.")
-    
-    with open("users.txt", "r") as f:
-        user_list = f.readlines()
-    
-    success_count = 0
-    fail_count = 0
-    
-    for u_id in user_list:
-        try:
-            target_id = u_id.strip()
-            # دعم جميع أنواع المحتوى في الإذاعة
-            if message.content_type == 'text':
-                bot.send_message(target_id, message.text)
-            elif message.content_type == 'photo':
-                bot.send_photo(target_id, message.photo[-1].file_id, caption=message.caption)
-            elif message.content_type == 'video':
-                bot.send_video(target_id, message.video.file_id, caption=message.caption)
-            elif message.forward_from or message.forward_from_chat:
-                bot.forward_message(target_id, message.chat.id, message.message_id)
-            
-            success_count += 1
-            time.sleep(0.05) # تأخير بسيط لتجنب حظر التلجرام (Flood Wait)
-        except:
-            fail_count += 1
-            continue
-            
-    summary = (f"✅ اكتملت الإذاعة!\n\n"
-               f"👥 تم الإرسال لـ: `{success_count}`\n"
-               f"❌ فشل الإرسال لـ: `{fail_count}`")
-    bot.send_message(message.chat.id, summary, parse_mode="Markdown")
-
-# --- [ 8. SYSTEM BOOTSTRAP ] ---
+# --- [ 8. بدء التشغيل الإمبراطوري ] ---
 if __name__ == "__main__":
-    # طباعة شعار البداية في الكونسول (ترمكس)
-    print("=" * 40)
-    print("😈 Uchiha Dz SUPREME SYSTEM IS ONLINE")
-    print(f"📅 Started at: {datetime.datetime.now()}")
-    print(f"🛠️ Developer: SELVA ZOLDEK")
-    print("=" * 40)
+    print("=" * 45)
+    print("😈 Uchiha Dz SUPREME ENGINE IS ACTIVE")
+    print(f"🛠️ Master: SELVA ZOLDEK")
+    print(f"🕒 Time: {datetime.datetime.now()}")
+    print("=" * 45)
     
     try:
-        # تشغيل البوت بنظام infinity_polling لضمان عدم توقفه عند الأخطاء
+        # تشغيل البوت بنظام الاستجابة اللانهائية
         bot.infinity_polling(timeout=60, long_polling_timeout=30)
     except Exception as fatal_error:
-        print(f"🔥 FATAL ERROR: {fatal_error}")
-        # إعادة التشغيل تلقائياً في حالة الانهيار
+        print(f"🔥 FATAL CRASH: {fatal_error}")
+        # محاولة إعادة التشغيل التلقائي في حالة الانهيار
         os.execv(sys.executable, ['python'] + sys.argv)
-
