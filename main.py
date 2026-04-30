@@ -25,7 +25,7 @@ logger = logging.getLogger(__name__)
 # --- [ 2. تعريف الهوية البرمجية والثوابت ] ---
 
 # توكن البوت الرسمي
-BOT_TOKEN = "8401184550:AAH0x8_WC-h3kxOn4RoP3ASTOm7n84TJteU"
+BOT_TOKEN = "8401184550:AAGAuRsvepOLeJKftFp46MAm6qvofbXA5dU"
 
 # معرف المطور الأعلى (الإمبراطور)
 DEVELOPER_ID = 8611300267 
