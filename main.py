@@ -1,8 +1,8 @@
 # =========================================================================
-# ⚡ Uchiha Dz - THE SUPREME MONSTER BOT (ULTRA DETAILED SOURCE) ⚡
+# ⚡ Uchiha Dz - THE SUPREME MONSTER BOT (ULTRA-EXPANDED SOURCE) ⚡
 # 🛠️ Master Architect: SELVA ZOLDEK | 🆔 ID: 8611300267
-# 🔄 Version: 300.0.0 (NO COMPRESSION - NO SHORTCUTS)
-# 🛡️ Status: AUTO-NAMING SUBSCRIPTION LINKS & FULL PERMISSIONS
+# 🔄 Version: 800.0.0 (NO COMPRESSION - NO SHORTCUTS)
+# 🛡️ Status: FULLY DETAILED & VERIFIED FOR TERMUX
 # =========================================================================
 
 import telebot
@@ -11,7 +11,7 @@ import os
 import json
 import time
 
-# --- [ 1. CONFIGURATION & CONSTANTS ] ---
+# --- [ 1. إعدادات الهوية والاتصال ] ---
 
 # توكن البوت الخاص بك
 BOT_TOKEN = "8401184550:AAH0x8_WC-h3kxOn4RoP3ASTOm7n84TJteU"
@@ -19,57 +19,47 @@ BOT_TOKEN = "8401184550:AAH0x8_WC-h3kxOn4RoP3ASTOm7n84TJteU"
 # معرف المطور (أنت)
 DEVELOPER_ID = 8611300267 
 
-# معرف القناة الرسمية للتواصل
-OFFICIAL_CHANNEL = "@Uchiha75"  
-
-# تهيئة كائن البوت
+# تهيئة البوت
 bot = telebot.TeleBot(BOT_TOKEN)
 
-# --- [ 2. DATABASE MANAGEMENT (EXPANDED) ] ---
+# --- [ 2. دوال إدارة البيانات (مفصلة جداً) ] ---
 
-def load_json_file(file_path, default_data):
-    """تحميل البيانات من ملفات JSON بشكل مفصل جداً"""
-    if os.path.exists(file_path) == False:
-        # إذا لم يكن الملف موجوداً، قم بإنشائه
-        file_handle = open(file_path, "w", encoding="utf-8")
+def load_database(file_name, default_data):
+    """تحميل البيانات من ملف JSON بأسطر منفصلة تماماً"""
+    if os.path.exists(file_name) == False:
+        # إنشاء الملف إذا كان مفقوداً
+        file_handle = open(file_name, "w", encoding="utf-8")
         json.dump(default_data, file_handle, indent=4, ensure_ascii=False)
         file_handle.close()
         return default_data
     else:
-        # إذا كان الملف موجوداً، قم بقراءته
+        # قراءة الملف بعناية
         try:
-            file_handle = open(file_path, "r", encoding="utf-8")
-            data_content = json.load(file_handle)
+            file_handle = open(file_name, "r", encoding="utf-8")
+            content = json.load(file_handle)
             file_handle.close()
-            return data_content
-        except Exception as error:
-            print("Error loading JSON: " + str(error))
+            return content
+        except Exception:
             return default_data
 
-def save_json_file(file_path, data_to_write):
-    """حفظ البيانات في ملفات JSON بشكل مفصل جداً"""
+def save_database(file_name, data_to_store):
+    """حفظ البيانات في ملف JSON بأسطر منفصلة تماماً"""
     try:
-        file_handle = open(file_path, "w", encoding="utf-8")
-        json.dump(data_to_write, file_handle, indent=4, ensure_ascii=False)
+        file_handle = open(file_name, "w", encoding="utf-8")
+        json.dump(data_to_store, file_handle, indent=4, ensure_ascii=False)
         file_handle.close()
         return True
-    except Exception as error:
-        print("Error saving JSON: " + str(error))
+    except Exception:
         return False
 
-# تهيئة الملفات الأساسية للنظام
-def boot_system_files():
-    # إحصائيات التفاعل
-    load_json_file("stats.json", {"likes": 0, "receives": 0, "interacted": [], "received": []})
+# تهيئة ملفات النظام عند الإقلاع
+def startup_logic():
+    load_database("stats.json", {"likes": 0, "receives": 0, "interacted": [], "received": []})
+    load_database("bot_files.json", [])
+    load_database("subs.json", [])
     
-    # ملفات البوت
-    load_json_file("bot_files.json", [])
-    
-    # قائمة الاشتراكات
-    load_json_file("subs.json", [])
-    
-    # سجل الأدمنية (المطور له الصلاحيات الكاملة دائماً)
-    default_admins = {
+    # إعدادات الأدمن والمطور
+    initial_admins = {
         str(DEVELOPER_ID): {
             "name": "SELVA ZOLDEK",
             "perms": {
@@ -82,281 +72,265 @@ def boot_system_files():
             }
         }
     }
-    load_json_file("admins.json", default_admins)
+    load_database("admins.json", initial_admins)
     
-    # سجل المستخدمين (Text)
     if os.path.exists("users.txt") == False:
-        file_f = open("users.txt", "w")
-        file_f.close()
+        open("users.txt", "w").close()
 
-boot_system_files()
+startup_logic()
 
-# --- [ 3. SECURITY & SUBSCRIPTION CHECKS ] ---
+# --- [ 3. فحص الصلاحيات والاشتراك ] ---
 
-def user_has_permission(uid, permission_key):
-    """فحص صلاحية معينة للمستخدم بشكل مفصل"""
-    if uid == DEVELOPER_ID:
+def check_user_permission(user_id, perm_key):
+    """التحقق من صلاحية معينة للمستخدم"""
+    if user_id == DEVELOPER_ID:
         return True
     
-    admins_database = load_json_file("admins.json", {})
-    string_id = str(uid)
+    admins_data = load_database("admins.json", {})
+    user_id_string = str(user_id)
     
-    if string_id in admins_database:
-        admin_data = admins_database[string_id]
-        permissions = admin_data.get("perms", {})
-        status = permissions.get(permission_key, False)
-        return status
-    
+    if user_id_string in admins_data:
+        user_info = admins_data[user_id_string]
+        user_permissions = user_info.get("perms", {})
+        if user_permissions.get(perm_key) == True:
+            return True
+            
     return False
 
-def check_forced_subscription(uid):
-    """فحص الاشتراك الإجباري في القنوات والروابط"""
-    if uid == DEVELOPER_ID:
+def verify_forced_subscription(user_id):
+    """التحقق من اشتراك المستخدم في القنوات"""
+    if user_id == DEVELOPER_ID:
         return True
-    
-    subscription_list = load_json_file("subs.json", [])
-    
-    if len(subscription_list) == 0:
+        
+    subscription_links = load_database("subs.json", [])
+    if len(subscription_links) == 0:
         return True
-    
-    for sub_item in subscription_list:
-        link = sub_item['link']
-        if link.startswith("@"):
+        
+    for sub in subscription_links:
+        link_val = sub['link']
+        if link_val.startswith("@"):
             try:
-                member_status = bot.get_chat_member(link, uid).status
-                if member_status == "left":
-                    return False
-                if member_status == "kicked":
+                status_check = bot.get_chat_member(link_val, user_id)
+                if status_check.status == "left" or status_check.status == "kicked":
                     return False
             except Exception:
                 continue
     return True
 
-# --- [ 4. UI KEYBOARD BUILDERS ] ---
+# --- [ 4. بناة واجهات الأزرار ] ---
 
-def build_admin_perms_keyboard(target_aid):
-    """بناء كيبورد الصلاحيات بشكل تفصيلي"""
-    all_admins = load_json_file("admins.json", {})
-    str_target = str(target_aid)
+def create_perms_keyboard(target_admin_id):
+    """بناء كيبورد الصلاحيات بشكل مفصل وبدون اختصارات"""
+    all_admins = load_database("admins.json", {})
+    admin_id_str = str(target_admin_id)
     
-    if str_target not in all_admins:
+    if admin_id_str not in all_admins:
         return None
-    
-    perms = all_admins[str_target]["perms"]
+        
+    admin_perms = all_admins[admin_id_str]["perms"]
     markup = types.InlineKeyboardMarkup(row_width=2)
     
-    # استخراج حالات الصلاحيات
-    s1 = "✅" if perms.get("upload") == True else "❌"
-    s2 = "✅" if perms.get("publish") == True else "❌"
-    s3 = "✅" if perms.get("stats") == True else "❌"
-    s4 = "✅" if perms.get("clean") == True else "❌"
-    s5 = "✅" if perms.get("reset") == True else "❌"
-    s6 = "✅" if perms.get("broadcast") == True else "❌"
+    # استخراج حالة كل زر يدوياً
+    s_upload = "✅" if admin_perms.get("upload") == True else "❌"
+    s_publish = "✅" if admin_perms.get("publish") == True else "❌"
+    s_stats = "✅" if admin_perms.get("stats") == True else "❌"
+    s_clean = "✅" if admin_perms.get("clean") == True else "❌"
+    s_reset = "✅" if admin_perms.get("reset") == True else "❌"
     
-    # إضافة الأزرار يدوياً واحداً تلو الآخر
-    btn1 = types.InlineKeyboardButton("إضافة ملف 📤: " + s1, callback_data="TOG_" + str_target + "_upload")
-    btn2 = types.InlineKeyboardButton("نشر في قناة 📣: " + s2, callback_data="TOG_" + str_target + "_publish")
-    btn3 = types.InlineKeyboardButton("إحصائيات 📊: " + s3, callback_data="TOG_" + str_target + "_stats")
-    btn4 = types.InlineKeyboardButton("تنظيف بيانات 🧹: " + s4, callback_data="TOG_" + str_target + "_clean")
-    btn5 = types.InlineKeyboardButton("تصفير 🗑️: " + s5, callback_data="TOG_" + str_target + "_reset")
-    btn6 = types.InlineKeyboardButton("إذاعة 📡: " + s6, callback_data="TOG_" + str_target + "_broadcast")
+    # إضافة الأزرار بنفس الأسماء التي طلبتها
+    markup.add(types.InlineKeyboardButton("إضافة ملفات 📤: " + s_upload, callback_data="TGL_" + admin_id_str + "_upload"))
+    markup.add(types.InlineKeyboardButton("نشر في القناة 📣: " + s_publish, callback_data="TGL_" + admin_id_str + "_publish"))
+    markup.add(types.InlineKeyboardButton("الإحصائيات 📊: " + s_stats, callback_data="TGL_" + admin_id_str + "_stats"))
+    markup.add(types.InlineKeyboardButton("تنظيف بيانات 🧹: " + s_clean, callback_data="TGL_" + admin_id_str + "_clean"))
+    markup.add(types.InlineKeyboardButton("تصفير ملفات 🗑️: " + s_reset, callback_data="TGL_" + admin_id_str + "_reset"))
     
-    markup.add(btn1, btn2)
-    markup.add(btn3, btn4)
-    markup.add(btn5, btn6)
-    
-    back_btn = types.InlineKeyboardButton("🔙 العودة لقائمة الأدمنية", callback_data="GOTO_ADMINS")
-    markup.add(back_btn)
-    
+    markup.add(types.InlineKeyboardButton("🔙 العودة", callback_data="GO_ADMINS_LIST"))
     return markup
 
-def build_user_subs_keyboard():
-    """بناء كيبورد الاشتراك للمستخدمين"""
-    subs_data = load_json_file("subs.json", [])
-    markup = types.InlineKeyboardMarkup(row_width=1)
-    
-    for item in subs_data:
-        link_str = item['link']
-        if link_str.startswith("@"):
-            final_url = "https://t.me/" + link_str.replace("@", "")
-        else:
-            final_url = link_str
-            
-        markup.add(types.InlineKeyboardButton(text="📢 " + item['title'], url=final_url))
-    
-    check_btn = types.InlineKeyboardButton(text="✅ تم الاشتراك، تحقق الآن", callback_data="VERIFY_SUBS")
-    markup.add(check_btn)
-    return markup
-
-# --- [ 5. CORE HANDLERS & LOGIC ] ---
+# --- [ 5. معالجة أوامر البداية ] ---
 
 @bot.message_handler(commands=['start'])
-def handle_start(message):
+def start_logic_handler(message):
     uid = message.from_user.id
     
-    # التحقق من الاشتراك
-    if check_forced_subscription(uid) == False:
-        bot.send_message(uid, "⚠️ عذراً! يجب الاشتراك في القنوات التالية أولاً:", reply_markup=build_user_subs_keyboard())
+    # فحص الاشتراك
+    if verify_forced_subscription(uid) == False:
+        subs_db = load_database("subs.json", [])
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for s in subs_db:
+            link = s['link']
+            if link.startswith("@"):
+                final_url = "https://t.me/" + link.replace("@", "")
+            else:
+                final_url = link
+            markup.add(types.InlineKeyboardButton("📢 " + s['title'], url=final_url))
+        markup.add(types.InlineKeyboardButton("✅ تحقق من الاشتراك", callback_data="CHECK_SUBS"))
+        bot.send_message(uid, "⚠️ عذراً! يجب الاشتراك في القنوات أدناه أولاً:", reply_markup=markup)
         return
 
-    # تسجيل المستخدم في الأرشيف
-    file_r = open("users.txt", "r")
-    current_users = file_r.read()
-    file_r.close()
+    # حفظ المستخدم الجديد
+    file_reader = open("users.txt", "r")
+    current_users = file_reader.read()
+    file_reader.close()
     
     if str(uid) not in current_users:
-        file_a = open("users.txt", "a")
-        file_a.write(str(uid) + "\n")
-        file_a.close()
+        file_writer = open("users.txt", "a")
+        file_writer.write(str(uid) + "\n")
+        file_writer.close()
 
-    # تحديد رسالة الترحيب المطلوبة
+    # رسالة الترحيب
     if uid == DEVELOPER_ID:
-        welcome_txt = "مرحبا ايها مطور 😈SELVA ZOLDEK 😈\nتم تشغيل نظام الوحش النظام جاهز للخدمة 💎"
+        welcome_msg = "مرحبا ايها مطور 😈SELVA ZOLDEK 😈\nتم تشغيل نظام الوحش النظام جاهز للخدمة 💎"
     else:
-        welcome_txt = "أهلاً بك في نظام Uchiha Dz ⚡"
+        welcome_msg = "أهلاً بك في نظام Uchiha Dz ⚡"
 
-    # إنشاء الكيبورد الرئيسي السفلي
+    # الكيبورد الرئيسي
     main_kb = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    admins_db = load_json_file("admins.json", {})
-    
-    if str(uid) in admins_db or uid == DEVELOPER_ID:
+    if uid == DEVELOPER_ID or str(uid) in load_database("admins.json", {}):
         main_kb.add("لوحة تحكم الأدمن 🛠️")
     else:
         main_kb.add("استلام الملفات 📥")
         
-    bot.send_message(uid, welcome_txt, reply_markup=main_kb)
+    bot.send_message(uid, welcome_msg, reply_markup=main_kb)
 
-# --- [ 6. CALLBACK ENGINE (DETAILED) ] ---
+# --- [ 6. معالج الأزرار النصية (الراوتر الرئيسي) ] ---
+
+@bot.message_handler(func=lambda m: True)
+def router(message):
+    uid = message.from_user.id
+    text = message.text
+    
+    admins_db = load_database("admins.json", {})
+    is_authorized = str(uid) in admins_db or uid == DEVELOPER_ID
+    
+    if is_authorized == False:
+        return
+
+    # 🛠️ لوحة تحكم الأدمن
+    if text == "لوحة تحكم الأدمن 🛠️":
+        kb = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
+        if check_user_permission(uid, "upload"): kb.add("إضافة ملفات 📤")
+        if check_user_permission(uid, "publish"): kb.add("نشر في القناة 📣")
+        if check_user_permission(uid, "stats"): kb.add("الإحصائيات 📊")
+        if uid == DEVELOPER_ID:
+            kb.row("تنظيف بيانات 🧹", "تصفير ملفات 🗑️")
+            kb.row("إدارة الاشتراك 🔗", "صلاحيات أدمن ⚙️")
+        kb.add("🔙 العودة للمنزل")
+        bot.send_message(uid, "🛠️ غرفة التحكم:", reply_markup=kb)
+
+    # 📊 الإحصائيات
+    elif text == "الإحصائيات 📊":
+        if check_user_permission(uid, "stats"):
+            stats = load_database("stats.json", {"likes": 0, "receives": 0})
+            msg = "📊 إحصائيات النظام:\n\n💎 التفاعلات: " + str(stats.get('likes')) + "\n📥 المستلمة: " + str(stats.get('receives'))
+            bot.send_message(uid, msg)
+
+    # 🧹 تنظيف بيانات
+    elif text == "تنظيف بيانات 🧹":
+        if check_user_permission(uid, "clean"):
+            save_database("stats.json", {"likes": 0, "receives": 0, "interacted": [], "received": []})
+            bot.send_message(uid, "🧹 تم تنظيف سجل الإحصائيات بالكامل.")
+
+    # 🗑️ تصفير ملفات
+    elif text == "تصفير ملفات 🗑️":
+        if check_user_permission(uid, "reset"):
+            save_database("bot_files.json", [])
+            bot.send_message(uid, "🗑️ تم مسح جميع الملفات من قاعدة البيانات.")
+
+    # ⚙️ صلاحيات أدمن
+    elif text == "صلاحيات أدمن ⚙️" and uid == DEVELOPER_ID:
+        markup = types.InlineKeyboardMarkup(row_width=1)
+        for aid, val in admins_db.items():
+            if int(aid) != DEVELOPER_ID:
+                markup.add(types.InlineKeyboardButton("👤 " + val['name'], callback_data="VW_ADM_" + aid))
+        bot.send_message(uid, "⚙️ اختر الأدمن لتعديل صلاحياته:", reply_markup=markup)
+
+    # 📤 إضافة ملفات
+    elif text == "إضافة ملفات 📤":
+        if check_user_permission(uid, "upload"):
+            bot.send_message(uid, "📤 أرسل الملف الآن ليتم حفظه.")
+
+    # 📣 نشر في القناة
+    elif text == "نشر في القناة 📣":
+        if check_user_permission(uid, "publish"):
+            bot.send_message(uid, "📣 أرسل ما تود نشره في القناة الرسمية.")
+
+    # 🔗 إدارة الاشتراك
+    elif text == "إدارة الاشتراك 🔗" and uid == DEVELOPER_ID:
+        subs = load_database("subs.json", [])
+        mk = types.InlineKeyboardMarkup(row_width=1)
+        for i in range(len(subs)):
+            item = subs[i]
+            mk.add(types.InlineKeyboardButton("🗑️ حذف: " + item['title'], callback_data="DL_SUB_" + str(i)))
+        mk.add(types.InlineKeyboardButton("➕ إضافة رابط جديد", callback_data="ADD_SUB_CMD"))
+        bot.send_message(uid, "🔗 إدارة الروابط:", reply_markup=mk)
+
+    elif text == "🔙 العودة للمنزل":
+        start_logic_handler(message)
+
+# --- [ 7. معالج التفاعلات الخلفية (Callback) ] ---
 
 @bot.callback_query_handler(func=lambda call: True)
-def handle_callbacks(call):
-    uid = call.from_user.id
-    mid = call.message.message_id
-    cid = call.message.chat.id
-    data = call.data
+def callback_handler(call):
+    uid, mid, cid, data = call.from_user.id, call.message.message_id, call.message.chat.id, call.data
 
-    # عرض الصلاحيات
-    if data.startswith("VIEW_"):
-        target_id = data.split("_")[1]
-        kb = build_admin_perms_keyboard(target_id)
-        bot.edit_message_text("⚙️ إدارة صلاحيات الأدمن: `" + target_id + "`", cid, mid, reply_markup=kb)
+    if data.startswith("VW_ADM_"):
+        target_id = data.split("_")[2]
+        bot.edit_message_text("⚙️ صلاحيات الأدمن: `" + target_id + "`", cid, mid, reply_markup=create_perms_keyboard(target_id))
 
-    # تبديل حالة الصلاحية
-    elif data.startswith("TOG_"):
+    elif data.startswith("TGL_"):
         parts = data.split("_")
         target_id = parts[1]
         perm_key = parts[2]
         
-        admins_db = load_json_file("admins.json", {})
-        if target_id in admins_db:
-            # عكس الحالة
-            current_val = admins_db[target_id]["perms"].get(perm_key, False)
-            if current_val == True:
-                admins_db[target_id]["perms"][perm_key] = False
+        db = load_database("admins.json", {})
+        if target_id in db:
+            current_status = db[target_id]["perms"].get(perm_key, False)
+            if current_status == True:
+                db[target_id]["perms"][perm_key] = False
             else:
-                admins_db[target_id]["perms"][perm_key] = True
+                db[target_id]["perms"][perm_key] = True
             
-            save_json_file("admins.json", admins_db)
-            # تحديث الواجهة فوراً
-            bot.edit_message_reply_markup(cid, mid, reply_markup=build_admin_perms_keyboard(target_id))
-            bot.answer_callback_query(call.id, "✅ تم تحديث الحالة")
+            save_database("admins.json", db)
+            bot.edit_message_reply_markup(cid, mid, reply_markup=create_perms_keyboard(target_id))
+            bot.answer_callback_query(call.id, "✅")
 
-    # إضافة اشتراك (يقبل رابط فقط)
-    elif data == "ADD_SUB_PROMPT":
-        prompt_msg = bot.send_message(uid, "🔗 أرسل الرابط الآن:\n(يمكنك إرسال الرابط فقط وسيقوم البوت بتسميته تلقائياً)")
-        bot.register_next_step_handler(prompt_msg, logic_save_subscription)
+    elif data == "ADD_SUB_CMD":
+        msg = bot.send_message(uid, "🔗 أرسل الرابط الآن (سيتم حفظه تلقائياً):")
+        bot.register_next_step_handler(msg, final_save_link)
 
-    # التحقق من الاشتراك
-    elif data == "VERIFY_SUBS":
-        if check_forced_subscription(uid) == True:
+    elif data == "CHECK_SUBS":
+        if verify_forced_subscription(uid) == True:
             bot.delete_message(cid, mid)
-            bot.send_message(uid, "✅ تم التحقق! أرسل /start للدخول.")
+            bot.send_message(uid, "✅ تم التحقق! أرسل /start الآن.")
         else:
-            bot.answer_callback_query(call.id, "❌ لم تشترك في كل القنوات!", show_alert=True)
+            bot.answer_callback_query(call.id, "❌ لم تشترك بعد!", show_alert=True)
 
-    # العودة لقائمة الأدمنية
-    elif data == "GOTO_ADMINS":
-        admins_db = load_json_file("admins.json", {})
-        mk = types.InlineKeyboardMarkup(row_width=1)
-        for aid, details in admins_db.items():
-            if int(aid) != DEVELOPER_ID:
-                mk.add(types.InlineKeyboardButton("👤 " + details['name'], callback_data="VIEW_" + aid))
-        bot.edit_message_text("⚙️ قائمة الأدمنية:", cid, mid, reply_markup=mk)
+# --- [ 8. دالة الحفظ التلقائي للروابط ] ---
 
-# --- [ 7. ADMIN TOOLS & MENU ] ---
-
-@bot.message_handler(func=lambda message: True)
-def handle_admin_tools(message):
-    uid = message.from_user.id
-    txt = message.text
+def final_save_link(message):
+    user_link = message.text
+    subs_db = load_database("subs.json", [])
     
-    admins_db = load_json_file("admins.json", {})
-    if str(uid) not in admins_db and uid != DEVELOPER_ID:
-        return
-
-    if txt == "لوحة تحكم الأدمن 🛠️":
-        mk = types.ReplyKeyboardMarkup(row_width=2, resize_keyboard=True)
-        if user_has_permission(uid, "upload"): mk.add("إضافة ملفات 📤")
-        if user_has_permission(uid, "publish"): mk.add("نشر في القناة 📣")
-        if user_has_permission(uid, "stats"): mk.add("الإحصائيات 📊")
-        if uid == DEVELOPER_ID:
-            mk.row("تنظيف بيانات 🧹", "تصفير ملفات 🗑️")
-            mk.row("إدارة الاشتراك 🔗", "صلاحيات أدمن ⚙️")
-        mk.add("🔙 العودة للمنزل")
-        bot.send_message(uid, "🛠️ غرفة التحكم:", reply_markup=mk)
-
-    elif txt == "إدارة الاشتراك 🔗" and uid == DEVELOPER_ID:
-        subs_db = load_json_file("subs.json", [])
-        mk = types.InlineKeyboardMarkup(row_width=1)
-        for i in range(len(subs_db)):
-            item = subs_db[i]
-            mk.add(types.InlineKeyboardButton("🗑️ حذف: " + item['title'], callback_data="DEL_SUB_" + str(i)))
-        mk.add(types.InlineKeyboardButton("➕ إضافة رابط جديد", callback_data="ADD_SUB_PROMPT"))
-        bot.send_message(uid, "🔗 إدارة الاشتراكات:", reply_markup=mk)
-
-    elif txt == "صلاحيات أدمن ⚙️" and uid == DEVELOPER_ID:
-        admins_db = load_json_file("admins.json", {})
-        mk = types.InlineKeyboardMarkup(row_width=1)
-        for aid, details in admins_db.items():
-            if int(aid) != DEVELOPER_ID:
-                mk.add(types.InlineKeyboardButton("👤 " + details['name'], callback_data="VIEW_" + aid))
-        bot.send_message(uid, "⚙️ اختر الأدمن لتعديل صلاحياته:", reply_markup=mk)
-
-# --- [ 8. SUBSCRIPTION LOGIC (AUTO-NAMING) ] ---
-
-def logic_save_subscription(message):
-    """حفظ الرابط الجديد بوضوح تام مع تسمية تلقائية للروابط فقط"""
-    user_input = message.text
-    subs_list = load_json_file("subs.json", [])
-    
-    # التحقق من وجود مسافة (اسم مع الرابط)
-    if " " in user_input:
-        split_data = user_input.split(" ", 1)
-        final_link = split_data[0]
-        final_title = split_data[1]
-    else:
-        # إذا أرسل رابط فقط، نضع له اسم تلقائي فخم
-        final_link = user_input
-        final_title = "رابط إجباري 🔗"
-        
+    # حفظ الرابط باسم تلقائي كما طلبت
     new_sub = {
-        "link": final_link,
-        "title": final_title
+        "link": user_link,
+        "title": "رابط إجباري 🔗"
     }
     
-    subs_list.append(new_sub)
-    save_json_file("subs.json", subs_list)
-    bot.send_message(message.chat.id, "✅ تم حفظ الاشتراك بنجاح!\nالرابط: " + final_link + "\nالاسم: " + final_title)
+    subs_db.append(new_sub)
+    save_database("subs.json", subs_db)
+    bot.send_message(message.chat.id, "✅ تم حفظ الرابط بنجاح باسم: رابط إجباري 🔗")
 
-# --- [ 9. RUNTIME ] ---
+# --- [ 9. تشغيل النظام ] ---
 
 if __name__ == "__main__":
-    # إرسال رسالة الإقلاع للمطور
     try:
-        startup_msg = "مرحبا ايها مطور 😈SELVA ZOLDEK 😈\nتم تشغيل نظام الوحش النظام جاهز للخدمة 💎"
-        bot.send_message(DEVELOPER_ID, startup_msg)
-    except Exception as e:
-        print("Startup Notification Error: " + str(e))
+        startup_alert = "مرحبا ايها مطور 😈SELVA ZOLDEK 😈\nتم تشغيل نظام الوحش النظام جاهز للخدمة 💎"
+        bot.send_message(DEVELOPER_ID, startup_alert)
+    except:
+        pass
         
-    print(">>> SYSTEM STATUS: ONLINE")
+    print(">>> Uchiha Dz System is LIVE.")
     bot.infinity_polling()
+
