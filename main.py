@@ -13,7 +13,7 @@ OWNER_ID = 8611300267
 CHANNEL_ID = "@Uchiha75"
 BOT_USERNAME = "gudurjbot"
 
-# تحسين الأداء لسيرفر 1G عبر تعدد المسارات لضمان عدم التوقف عند الضغط
+# تحسين الأداء عبر تعدد المسارات
 bot = telebot.TeleBot(TOKEN, threaded=True, num_threads=50)
 file_lock = threading.Lock()
 
@@ -42,7 +42,6 @@ def save_json(filename, data):
     with file_lock:
         with open(filename, "w", encoding="utf-8") as f: json.dump(data, f, indent=4, ensure_ascii=False)
 
-# مخزن مؤقت لصلاحيات المشرفين
 temp_admin_perms = {}
 
 # ==========================================
@@ -134,10 +133,11 @@ def start_cmd(message):
             except: pass
         return
 
+    # رسائل الترحيب المحدثة لنظام Ghost of Sparta
     if uid == OWNER_ID:
-        bot.send_message(uid, "مرحبا ايها مطور 😈SELVA ZOLDEK 😈مرحبا في نظام الوحش النظام جاهز للخدمة", reply_markup=get_panel(uid))
+        bot.send_message(uid, "مرحبا ايها مطور 😈SELVA ZOLDEK 😈تم تشغيل نظام 💎Ghost of Sparta💎", reply_markup=get_panel(uid))
     else:
-        bot.send_message(uid, f"أهلاً بك {message.from_user.first_name} في نظام الوحش ⚡", reply_markup=get_panel(uid))
+        bot.send_message(uid, "تم تشغيل نظام 💎Ghost of Sparta💎", reply_markup=get_panel(uid))
 
 # ==========================================
 # 4. معالجة الوظائف والأزرار
@@ -154,7 +154,7 @@ def handle_all_logic(message):
         act = load_json("activity.json")
         t_i = sum(v.get('i', 0) for v in act.values())
         t_r = sum(v.get('r', 0) for v in act.values())
-        msg = f"📊 **إحصائيات الوحش:**\n\n👥 المشتركين: {u}\n📂 الملفات: {f}\n❤️ التفاعلات: {t_i}\n📩 الاستلامات: {t_r}"
+        msg = f"📊 **إحصائيات Ghost of Sparta:**\n\n👥 المشتركين: {u}\n📂 الملفات: {f}\n❤️ التفاعلات: {t_i}\n📩 الاستلامات: {t_r}"
         bot.send_message(uid, msg)
 
     elif text == "تصفير الإحصائيات ⚠️" and uid == OWNER_ID:
@@ -205,12 +205,48 @@ def handle_all_logic(message):
         bot.send_message(uid, "🛠️ للتواصل مع الدعم الفني: @Uchiha75")
 
     elif text == "معلومات البوت ℹ️":
-        bot.send_message(uid, "ℹ️ نظام الوحش v2.0\nالمطور: SELVA ZOLDEK\nنظام إدارة قنوات متكامل.")
+        bot.send_message(uid, "ℹ️ نظام 💎Ghost of Sparta💎\nالمطور: SELVA ZOLDEK\nنظام إدارة قنوات متكامل.")
 
     elif text == "إنهاء ✅":
         bot.send_message(uid, "🏠 القائمة الرئيسية.", reply_markup=get_panel(uid))
 
-# --- وظائف فرعية ---
+# --- وظائف الإذاعة المصلحة ---
+def broadcast_flow(message):
+    uid = message.from_user.id
+    b_type = message.text
+    if b_type == "إنهاء ✅":
+        bot.send_message(uid, "🏠 تم الإلغاء.", reply_markup=get_panel(uid))
+        return
+    if b_type in ["اذاعة مستخدمين", "اذاعة قناة", "اذاعة جميع"]:
+        msg = bot.send_message(uid, f"📣 أرسل الآن الرسالة التي تريد إذاعتها لـ ({b_type}):")
+        bot.register_next_step_handler(msg, lambda m: start_broadcast(m, b_type))
+
+def start_broadcast(message, b_type):
+    uid = message.from_user.id
+    if message.text == "إنهاء ✅":
+        bot.send_message(uid, "تم الإلغاء.", reply_markup=get_panel(uid))
+        return
+    
+    users = get_list("users.txt")
+    count = 0
+    wait_msg = bot.send_message(uid, "⏳ جاري الإذاعة...")
+
+    if b_type in ["اذاعة مستخدمين", "اذاعة جميع"]:
+        for u_id in users:
+            try:
+                bot.copy_message(u_id, message.chat.id, message.message_id)
+                count += 1
+                time.sleep(0.05)
+            except: continue
+
+    if b_type in ["اذاعة قناة", "اذاعة جميع"]:
+        try: bot.copy_message(CHANNEL_ID, message.chat.id, message.message_id)
+        except: pass
+
+    bot.delete_message(uid, wait_msg.message_id)
+    bot.send_message(uid, f"✅ تمت الإذاعة لـ {count} مستخدم.", reply_markup=get_panel(uid))
+
+# --- وظائف فرعية أخرى ---
 def save_post_caption(message):
     if message.text == "إنهاء ✅": 
         bot.send_message(message.from_user.id, "🏠 العودة..", reply_markup=get_panel(message.from_user.id))
@@ -226,22 +262,6 @@ def manage_subs_logic(message):
     elif t.startswith("@"):
         subs.append(t); save_json("subs.json", list(set(subs)))
     bot.send_message(OWNER_ID, "🏠 العودة...", reply_markup=get_panel(OWNER_ID))
-
-def broadcast_flow(message):
-    if message.text == "إنهاء ✅": bot.send_message(message.from_user.id, "تم.", reply_markup=get_panel(message.from_user.id)); return
-    bot.send_message(message.from_user.id, f"📣 أرسل رسالة الإذاعة لـ ({message.text}):")
-    bot.register_next_step_handler(message, lambda m: start_broadcast(m, message.text))
-
-def start_broadcast(message, b_type):
-    users, count = get_list("users.txt"), 0
-    if b_type in ["اذاعة مستخدمين", "اذاعة جميع"]:
-        for u in users:
-            try: bot.copy_message(u, message.chat.id, message.message_id); count += 1; time.sleep(0.05)
-            except: continue
-    if b_type in ["اذاعة قناة", "اذاعة جميع"]:
-        try: bot.copy_message(CHANNEL_ID, message.chat.id, message.message_id)
-        except: pass
-    bot.send_message(message.from_user.id, f"✅ تم لـ {count} مستخدم.", reply_markup=get_panel(message.from_user.id))
 
 def process_admin_id(message):
     if not message.text.isdigit(): bot.send_message(OWNER_ID, "❌ أرسل ID صحيح."); return
@@ -288,6 +308,6 @@ def handle_callbacks(call):
             except: pass
         else: bot.answer_callback_query(call.id, "⚠️ تفاعلت مسبقاً.", show_alert=True)
 
-print("😈 THE BEAST SYSTEM IS ONLINE - OWNER: SELVA ZOLDEK")
+print("😈 Ghost of Sparta SYSTEM IS ONLINE - OWNER: SELVA ZOLDEK")
 bot.infinity_polling()
 
